@@ -25,22 +25,14 @@ resource "aws_ecr_repository" "app" {
 resource "aws_ecr_lifecycle_policy" "app" {
   repository = aws_ecr_repository.app.name
 
+  # Only a count-based rule: multi-arch images and their SBOM/provenance
+  # attestations are pushed as an image index whose child manifests are
+  # untagged, so an "expire untagged" rule could break a deployed image.
   policy = jsonencode({
     rules = [
       {
         rulePriority = 1
-        description  = "Expire untagged images after 7 days"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 7
-        }
-        action = { type = "expire" }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep the 30 most recent images"
+        description  = "Keep the 30 most recent images (indexes, manifests and attestations count separately)"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
