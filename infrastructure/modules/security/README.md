@@ -5,7 +5,7 @@ All security groups of the platform, chained tier by tier with security-group re
 ## Design
 
 ```text
-VPC Link --80--> internal ALB --8080--> ECS tasks --5432--> Aurora
+VPC Link --80--> internal ALB --8080--> ECS tasks --5432--> PostgreSQL
 ```
 
 - Keeping every group in one module avoids cross-module dependency cycles between the ALB, API and ECS modules.
@@ -69,6 +69,6 @@ module "security" {
 | ---- | ----------- |
 | <a name="output_alb_security_group_id"></a> [alb\_security\_group\_id](#output\_alb\_security\_group\_id) | Security group for the internal ALB. |
 | <a name="output_app_security_group_id"></a> [app\_security\_group\_id](#output\_app\_security\_group\_id) | Security group for ECS tasks. |
-| <a name="output_db_security_group_id"></a> [db\_security\_group\_id](#output\_db\_security\_group\_id) | Security group for the Aurora cluster. |
+| <a name="output_db_security_group_id"></a> [db\_security\_group\_id](#output\_db\_security\_group\_id) | Security group for the PostgreSQL database. |
 | <a name="output_vpc_link_security_group_id"></a> [vpc\_link\_security\_group\_id](#output\_vpc\_link\_security\_group\_id) | Security group for the API Gateway VPC Link. |
 <!-- END_TF_DOCS -->

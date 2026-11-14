@@ -1,7 +1,7 @@
 ###############################################################################
 # Request path:
 #   Users -> CloudFront (+WAF) -> S3 (static) | /api/* -> HTTP API (JWT)
-#         -> VPC Link -> internal ALB -> ECS Fargate -> Aurora Serverless v2
+#         -> VPC Link -> internal ALB -> ECS Fargate -> RDS for PostgreSQL
 ###############################################################################
 
 # Shared secret between CloudFront and the internal ALB. Requests that do not
@@ -15,7 +15,7 @@ resource "random_password" "origin_verify" {
 # Foundation
 ###############################################################################
 
-# Customer managed keys: one in the primary region (logs, Aurora, secrets, SNS)
+# Customer managed keys: one in the primary region (logs, database, secrets, SNS)
 # and one in us-east-1 for edge resources (WAF logs, global alarm topic).
 module "kms" {
   source = "./modules/kms"
@@ -64,23 +64,32 @@ module "security" {
 # Data tier
 ###############################################################################
 
-module "aurora" {
-  source = "./modules/aurora"
+module "database" {
+  source = "./modules/database"
 
   name                         = local.name
   subnet_ids                   = module.network.data_subnet_ids
   security_group_id            = module.security.db_security_group_id
   port                         = local.db_port
-  min_capacity                 = var.aurora_min_capacity
-  max_capacity                 = var.aurora_max_capacity
-  instance_count               = var.aurora_instance_count
-  backup_retention_days        = var.aurora_backup_retention_days
-  performance_insights_enabled = var.aurora_performance_insights
-  enhanced_monitoring_interval = var.aurora_enhanced_monitoring_interval
+  instance_class               = var.db_instance_class
+  allocated_storage            = var.db_allocated_storage
+  max_allocated_storage        = var.db_max_allocated_storage
+  multi_az                     = var.db_multi_az
+  backup_retention_days        = var.db_backup_retention_days
+  performance_insights_enabled = var.db_performance_insights
+  enhanced_monitoring_interval = var.db_enhanced_monitoring_interval
   kms_key_arn                  = module.kms.key_arn
   deletion_protection          = var.deletion_protection
   skip_final_snapshot          = !var.deletion_protection
   log_retention_days           = var.log_retention_days
+}
+
+# The data tier started as Aurora Serverless v2 (module "aurora"). AWS
+# Free-plan accounts cannot create Aurora clusters inside a VPC, so it moved
+# to RDS for PostgreSQL; this keeps existing state addresses in sync.
+moved {
+  from = module.aurora
+  to   = module.database
 }
 
 ###############################################################################
@@ -119,10 +128,10 @@ module "ecs" {
   target_group_arn        = module.alb.target_group_arn
   alb_arn_suffix          = module.alb.arn_suffix
   target_group_arn_suffix = module.alb.target_group_arn_suffix
-  db_host                 = module.aurora.endpoint
-  db_port                 = module.aurora.port
-  db_name                 = module.aurora.database_name
-  db_secret_arn           = module.aurora.master_user_secret_arn
+  db_host                 = module.database.address
+  db_port                 = module.database.port
+  db_name                 = module.database.database_name
+  db_secret_arn           = module.database.master_user_secret_arn
   kms_key_arn             = module.kms.key_arn
   log_retention_days      = var.log_retention_days
 }
@@ -208,7 +217,7 @@ module "monitoring" {
   ecs_cluster_name           = module.ecs.cluster_name
   ecs_service_name           = module.ecs.service_name
   api_id                     = module.api.api_id
-  aurora_cluster_identifier  = module.aurora.cluster_identifier
+  db_instance_identifier     = module.database.identifier
   cloudfront_distribution_id = module.cdn.distribution_id
   waf_web_acl_name           = module.waf.web_acl_name
   kms_key_arn                = module.kms.key_arn

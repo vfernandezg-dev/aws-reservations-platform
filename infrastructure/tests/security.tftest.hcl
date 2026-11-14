@@ -38,7 +38,7 @@ run "tiers_are_chained_by_security_group" {
 
   assert {
     condition     = aws_vpc_security_group_ingress_rule.db_from_app.referenced_security_group_id == aws_security_group.app.id
-    error_message = "Aurora must only accept traffic from the tasks."
+    error_message = "The database must only accept traffic from the tasks."
   }
 
   assert {

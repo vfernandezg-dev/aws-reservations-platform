@@ -27,10 +27,11 @@ app_min_capacity = 1
 app_max_capacity = 3
 use_fargate_spot = true
 
-# Aurora Serverless v2
-aurora_min_capacity                 = 0
-aurora_max_capacity                 = 4
-aurora_instance_count               = 1
-aurora_backup_retention_days        = 3
-aurora_enhanced_monitoring_interval = 0
-aurora_performance_insights         = false
+# RDS PostgreSQL: same engine and size as dev with longer backups
+db_instance_class               = "db.t4g.micro"
+db_allocated_storage            = 20
+db_max_allocated_storage        = 100
+db_multi_az                     = false
+db_backup_retention_days        = 3
+db_enhanced_monitoring_interval = 0
+db_performance_insights         = false

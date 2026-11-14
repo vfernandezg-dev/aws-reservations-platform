@@ -1,5 +1,5 @@
 # Development: cheapest footprint, disposable data. ~ idle cost is dominated by
-# the NAT gateway, ALB and WAF; Aurora scales to zero and tasks run on Spot.
+# the NAT gateway, ALB and WAF; the database is a db.t4g.micro and tasks run on Spot.
 environment = "dev"
 
 deletion_protection = false
@@ -28,10 +28,11 @@ app_min_capacity = 1
 app_max_capacity = 2
 use_fargate_spot = true
 
-# Aurora Serverless v2: pause after 5 idle minutes
-aurora_min_capacity                 = 0
-aurora_max_capacity                 = 2
-aurora_instance_count               = 1
-aurora_backup_retention_days        = 1
-aurora_enhanced_monitoring_interval = 0
-aurora_performance_insights         = false
+# RDS PostgreSQL: smallest Graviton class, single-AZ, 1 day of backups
+db_instance_class               = "db.t4g.micro"
+db_allocated_storage            = 20
+db_max_allocated_storage        = 50
+db_multi_az                     = false
+db_backup_retention_days        = 1
+db_enhanced_monitoring_interval = 0
+db_performance_insights         = false

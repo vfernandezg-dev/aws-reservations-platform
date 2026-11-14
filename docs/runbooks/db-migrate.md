@@ -1,6 +1,6 @@
 # Runbook — Database migrations
 
-Aurora lives in isolated subnets with no route to the internet, so migrations run **inside the VPC** as a
+The database lives in isolated subnets with no route to the internet, so migrations run **inside the VPC** as a
 one-off Fargate task that uses the same image as the API (`node dist/migrate.js`).
 
 ```bash
@@ -18,7 +18,6 @@ What happens:
    re-run safely. Statements are also idempotent (`IF NOT EXISTS`, `CREATE OR REPLACE`).
 5. The script waits for the task, prints its logs and exits with the task's exit code.
 
-If Aurora is paused (dev/staging), the first connection resumes it (~15 s); the connect timeout is 30 s.
 
 ## Adding a migration
 

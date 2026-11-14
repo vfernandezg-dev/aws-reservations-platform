@@ -15,10 +15,10 @@ confiabilidad y costos integrados, y desplegada mediante un pipeline de CI/CD to
 
 **Aspectos destacados**
 
-- 🌐 **Del borde serverless a un núcleo privado**: CloudFront + WAF → API Gateway HTTP API (JWT de Cognito) → VPC Link → ALB *interno* → ECS Fargate (Graviton) → Aurora Serverless v2 (PostgreSQL 18).
+- 🌐 **Del borde serverless a un núcleo privado**: CloudFront + WAF → API Gateway HTTP API (JWT de Cognito) → VPC Link → ALB *interno* → ECS Fargate (Graviton) → RDS for PostgreSQL 18.
 - 🔐 **Defensa en profundidad**: nada dentro de la VPC está expuesto a internet, security groups encadenados por referencia, cabecera secreta de origen contra el bypass del WAF, llaves KMS administradas por el cliente, secretos gestionados por RDS (ninguna contraseña en Terraform) y TLS en todo tráfico que sale de la VPC.
-- 💸 **Costos bajo control desde el diseño**: Aurora escala a **cero** cuando está inactiva, Fargate Spot + ARM64, un solo NAT fuera de producción y dimensionamiento por entorno en los `tfvars`.
-- 🧪 **Probado y escaneado**: 24 casos de `terraform test` con proveedor simulado (mock), TFLint, Trivy, Checkov (**0 fallos** con la configuración de producción y cada excepción justificada en el código), gitleaks, hadolint y shellcheck.
+- 💸 **Costos bajo control desde el diseño**: Graviton en todo (Fargate ARM64, `db.t4g`), Fargate Spot y un solo NAT fuera de producción, Multi-AZ solo donde importa y dimensionamiento por entorno en los `tfvars`. Funciona en una cuenta de AWS con **plan Free**.
+- 🧪 **Probado y escaneado**: 25 casos de `terraform test` con proveedor simulado (mock), TFLint, Trivy, Checkov (**0 fallos** con la configuración de producción y cada excepción justificada en el código), gitleaks, hadolint y shellcheck.
 - 🚀 **Entrega estilo GitOps**: GitHub Actions con OIDC (sin llaves de larga duración), planes como comentario en cada PR, despliegues con aprobación por entorno que aplican exactamente el plan revisado, y procedencia de imagen firmada + SBOM.
 
 ---
@@ -71,11 +71,11 @@ flowchart LR
         ecs[ECS Fargate · ARM64<br/>autoescalado]
       end
       subgraph data["Subredes de datos aisladas"]
-        aurora[(Aurora Serverless v2<br/>PostgreSQL 18)]
+        db[(RDS for PostgreSQL 18<br/>Multi-AZ en prod)]
       end
     end
 
-    apigw --> link --> alb --> ecs -->|TLS| aurora
+    apigw --> link --> alb --> ecs -->|TLS| db
     ecs -->|APIs de AWS| nat
     sm[Secrets Manager<br/>secreto gestionado por RDS] -. inyectado al iniciar .-> ecs
     ecr[Amazon ECR] -. imagen arm64 .-> ecs
@@ -92,7 +92,7 @@ sequenceDiagram
   participant GW as API Gateway (HTTP API)
   participant ALB as ALB interno
   participant T as Tarea Fargate
-  participant DB as Aurora Serverless v2
+  participant DB as RDS PostgreSQL
   U->>CF: GET /api/me · Authorization: Bearer <JWT>
   CF->>CF: reglas WAF, reputación de IP, límite de tasa
   CF->>GW: reenvía sin el Host del cliente + X-Origin-Verify secreto
@@ -112,9 +112,9 @@ El contenido estático (`/*`) se sirve desde S3 mediante **Origin Access Control
 |---|---|---|---|
 | Pública | `10.x.0.0/24`, `10.x.1.0/24` | Solo NAT gateways | Internet gateway |
 | Aplicación (privada) | `10.x.10.0/24`, `10.x.11.0/24` | ENIs del VPC Link, ALB interno, tareas Fargate, endpoints de interfaz | NAT gateway (misma AZ) |
-| Datos (aislada) | `10.x.20.0/24`, `10.x.21.0/24` | Instancias de Aurora | **ninguna** |
+| Datos (aislada) | `10.x.20.0/24`, `10.x.21.0/24` | RDS PostgreSQL (primaria + standby en prod) | **ninguna** |
 
-Los security groups se encadenan por referencia: `VPC Link → ALB:80 → tareas:8080 → Aurora:5432`. Ninguna regla de entrada usa un CIDR.
+Los security groups se encadenan por referencia: `VPC Link → ALB:80 → tareas:8080 → PostgreSQL:5432`. Ninguna regla de entrada usa un CIDR.
 
 ### Servicios de AWS
 
@@ -127,9 +127,9 @@ Los security groups se encadenan por referencia: `VPC Link → ALB:80 → tareas
 | Cognito | Identidad | Plan Essentials, Managed Login v2, MFA TOTP, solo SRP + code flow (PKCE) |
 | Elastic Load Balancing | Enrutamiento privado | ALB interno, regla de acceso por cabecera, descarte de cabeceras inválidas |
 | ECS sobre Fargate | Cómputo | ARM64, imagen distroless sin root, sistema de archivos de solo lectura, circuit breaker, target tracking |
-| Aurora Serverless v2 | Base de datos | PostgreSQL 18, 0–8 ACU, réplica Multi-AZ en prod, auditoría de conexiones/DDL, PITR |
+| RDS for PostgreSQL | Base de datos | PostgreSQL 18 en Graviton (`db.t4g`), gp3 con autoescalado de almacenamiento, standby Multi-AZ en prod, auditoría de conexiones/DDL, PITR |
 | Secrets Manager | Credenciales | Contraseña maestra generada y rotada por RDS, inyectada por ECS |
-| KMS | Cifrado | Llaves administradas por el cliente (con rotación) para Aurora, secretos, logs, SNS y el state |
+| KMS | Cifrado | Llaves administradas por el cliente (con rotación) para la base de datos, secretos, logs, SNS y el state |
 | ECR | Imágenes | Tags inmutables, escaneo al subir, política de ciclo de vida |
 | CloudWatch / SNS | Observabilidad | Alarmas en cada capa, dashboard, Container Insights, tópicos cifrados |
 | VPC | Redes | Subredes de 3 capas, Flow Logs, endpoint gateway de S3, endpoints de interfaz opcionales |
@@ -147,7 +147,7 @@ Cada módulo tiene su propio README en [`infrastructure/modules`](infrastructure
 | **Protección del origen** | CloudFront añade la cabecera secreta `X-Origin-Verify`; sin ella el ALB interno responde 403, por lo que llamar directamente a la URL `execute-api` no permite saltarse el WAF |
 | **Red** | Sin IPs públicas en las cargas de trabajo, ALB interno, subredes de datos sin ruta por defecto, reglas SG→SG, SG por defecto bloqueado, VPC Flow Logs |
 | **Cómputo** | Imagen distroless sin root, sistema de archivos raíz de solo lectura, roles de tarea/ejecución con mínimo privilegio, escaneo de imágenes en CI y ECR |
-| **Datos** | Aurora cifrada con una CMK, TLS obligatorio (`rds.force_ssl`), autenticación IAM habilitada, protección contra borrado, backups + PITR, auditoría de conexiones y DDL |
+| **Datos** | Base de datos cifrada con una CMK, TLS obligatorio (`rds.force_ssl`), autenticación IAM habilitada, protección contra borrado, backups + PITR, auditoría de conexiones y DDL |
 | **Secretos** | Ningún secreto de base de datos en código, variables ni state: RDS gestiona la contraseña y ECS la inyecta en tiempo de ejecución |
 | **Cadena de suministro** | Actions fijadas por SHA de commit, Dependabot, SBOM + procedencia de build firmada, imágenes base fijadas por digest |
 | **Entrega** | Roles OIDC acotados por repositorio/rama/entorno, rol de plan de solo lectura, revisores por entorno antes de aplicar, state cifrado con bloqueo |
@@ -159,9 +159,9 @@ al recurso como `#checkov:skip=<id>:<motivo>` o `# trivy:ignore:<id> <motivo>`.
 
 ## Confiabilidad y escalabilidad
 
-- **Multi-AZ en todo**: subredes, NAT (prod), ALB, tareas Fargate con rebalanceo entre AZ, escritor + lector de Aurora en AZ distintas (prod) con failover automático.
+- **Multi-AZ en todo**: subredes, NAT (prod), ALB, tareas Fargate con rebalanceo entre AZ, standby síncrono Multi-AZ de RDS (prod) con failover automático.
 - **Auto-reparación**: los health checks del ALB y del contenedor reemplazan tareas no sanas; los despliegues usan circuit breaker con rollback automático.
-- **Elasticidad**: target tracking por CPU y por peticiones por tarea; Aurora Serverless v2 escala en pasos de 0.5 ACU y se pausa cuando no se usa (dev/staging).
+- **Elasticidad**: target tracking por CPU y por peticiones por tarea; el almacenamiento de la base de datos crece automáticamente (autoescalado gp3).
 - **Observabilidad**: alarmas de 5xx en cada salto, targets no sanos, saturación y deadlocks, picos de bloqueos del WAF; dashboard por entorno; bloques `check` verifican los endpoints públicos tras cada apply.
 - **Protección de datos**: backups automáticos (1–14 días), recuperación a un punto en el tiempo, snapshot final con nombre único y protección contra borrado en producción.
 
@@ -176,7 +176,7 @@ Un único módulo raíz, un archivo de state por entorno y diferencias solo en [
 | NAT gateways | 1 compartido | 1 compartido | 1 por AZ |
 | Endpoints de interfaz | – | – | ECR, Logs, Secrets Manager |
 | Fargate | 1–2 tareas, **Spot** | 1–3 tareas, Spot | 2–6 tareas, bajo demanda |
-| Aurora | 0–2 ACU (**se pausa**), 1 instancia | 0–4 ACU, 1 instancia | 0.5–8 ACU, escritor + lector |
+| PostgreSQL (RDS) | `db.t4g.micro`, una AZ | `db.t4g.micro`, una AZ | `db.t4g.small`, **Multi-AZ** |
 | Autenticación en `/api/*` | desactivada (exploración libre) | JWT de Cognito + Managed Login | JWT de Cognito + Managed Login |
 | Protección contra borrado | no | no | **sí** |
 | Retención de logs | 7 días | 14 días | 365 días |
@@ -197,12 +197,12 @@ Un único módulo raíz, un archivo de state por entorno y diferencias solo en [
 | ALB interno | ~$16 | ~$16 |
 | AWS WAF (Web ACL + 5 reglas) | ~$10 | ~$10 |
 | Fargate ARM64 | ~$2 (Spot, 0.25 vCPU) | ~$29 (2 × 0.5 vCPU) |
-| Aurora Serverless v2 | solo almacenamiento mientras está pausada | ~$88 (2 × 0.5 ACU mín.) |
+| RDS PostgreSQL | ~$14 (`db.t4g.micro`, 20 GB) | ~$51 (`db.t4g.small` Multi-AZ) |
 | Endpoints de interfaz | – | ~$58 |
 | KMS, dashboard, alarmas, secreto | ~$7 | ~$7 |
-| **Total (aprox.)** | **~$70 / mes** | **~$280 / mes** |
+| **Total (aprox.)** | **~$85 / mes** | **~$245 / mes** |
 
-Palancas de ahorro ya aplicadas: base de datos que escala a cero, Spot, Graviton (~20% más barato que x86),
+Palancas de ahorro ya aplicadas: base de datos y tareas en Graviton, Spot, Graviton (~20% más barato que x86),
 un solo NAT fuera de producción, retención corta de logs en dev y `make destroy` para entornos efímeros.
 
 ---
@@ -238,7 +238,7 @@ un solo NAT fuera de producción, retención corta de logs en dev y `make destro
 | [api](infrastructure/modules/api) | HTTP API, autorizador JWT, VPC Link |
 | [alb](infrastructure/modules/alb) | ALB interno con verificación de origen |
 | [ecs](infrastructure/modules/ecs) | Clúster Fargate, servicio, escalado, tarea de migraciones |
-| [aurora](infrastructure/modules/aurora) | Aurora Serverless v2 PostgreSQL 18 |
+| [database](infrastructure/modules/database) | RDS for PostgreSQL 18 |
 | [monitoring](infrastructure/modules/monitoring) | Alarmas, SNS, dashboard |
 
 ---
@@ -306,7 +306,7 @@ parametrizado y una imagen de controlador configurada completamente como código
 | Herramienta | Qué verifica | Dónde corre |
 |---|---|---|
 | `terraform fmt` / `validate` | Formato, sintaxis, tipos, validaciones entre variables | pre-commit, CI, Jenkins |
-| `terraform test` | 24 pruebas unitarias con proveedor AWS simulado (subredes, estrategia NAT, encadenamiento de SG, rutas JWT, eliminación de cabeceras, tareas ARM64/solo lectura, HA y escalado a cero de Aurora, invariantes de WAF/CloudFront, validación de entradas) | CI, Jenkins |
+| `terraform test` | 25 pruebas unitarias con proveedor AWS simulado (subredes, estrategia NAT, encadenamiento de SG, rutas JWT, eliminación de cabeceras, tareas ARM64/solo lectura, HA, cifrado y parámetros TLS/auditoría de la base de datos, invariantes de WAF/CloudFront, validación de entradas) | CI, Jenkins |
 | TFLint + ruleset AWS | Errores específicos del proveedor, nombres, declaraciones sin uso o sin documentar | pre-commit, CI, Jenkins |
 | Trivy | Malas configuraciones de IaC (SARIF → code scanning) y CVEs de la imagen | CI, Jenkins |
 | Checkov | ~280 políticas con la configuración de producción, 0 fallos | CI |
@@ -344,7 +344,7 @@ Registros de decisiones de arquitectura (ADR, en inglés) en [`docs/adr`](docs/a
 2. [Un módulo raíz, un tfvars por entorno](docs/adr/0002-single-root-module-per-environment-tfvars.md)
 3. [HTTP API + VPC Link + ALB interno](docs/adr/0003-http-api-vpc-link-internal-alb.md)
 4. [ECS Fargate en Graviton en lugar de EC2](docs/adr/0004-ecs-fargate-arm64.md)
-5. [Aurora Serverless v2 PostgreSQL con credenciales gestionadas por RDS](docs/adr/0005-aurora-serverless-v2-postgresql.md)
+5. [RDS for PostgreSQL con credenciales gestionadas por RDS](docs/adr/0005-rds-postgresql.md)
 6. [OIDC de GitHub en lugar de llaves de acceso estáticas](docs/adr/0006-github-oidc-ci-credentials.md)
 
 ---
@@ -372,9 +372,9 @@ La versión actual es mi **rediseño y modernización completos** de ese trabajo
 | State y secretos | State local y `tfvars` con la contraseña de la base de datos subidos a git | State remoto cifrado con bloqueo; contraseña gestionada por RDS, nada secreto en git |
 | Cómputo | 2 EC2 fijas + ASG sirviendo una página PHP de ejemplo | ECS Fargate ARM64, contenedor distroless, autoescalado, circuit breaker |
 | API y autenticación | API REST con un autorizador que nunca se asoció; ALB público | HTTP API con JWT de Cognito, VPC Link privado, ALB interno con secreto de origen |
-| Base de datos | RDS MySQL 8.0 (hoy en Extended Support de pago) | Aurora Serverless v2 PostgreSQL 18 con escalado a cero; esquema migrado desde MySQL |
+| Base de datos | RDS MySQL 8.0 (hoy en Extended Support de pago) | RDS for PostgreSQL 18 (Graviton, Multi-AZ en prod); esquema migrado desde MySQL |
 | Borde | Políticas de bucket en conflicto, configuración KMS que bloqueaba OAC, cabecera Host que rompía la API | OAC, políticas administradas de CloudFront, logging v2, WAF con logs correctos |
-| Calidad | Sin linting ni pruebas, 62 controles de Checkov fallidos | 24 pruebas de Terraform, TFLint, Trivy, Checkov con 0 fallos (prod), documentación generada |
+| Calidad | Sin linting ni pruebas, 62 controles de Checkov fallidos | 25 pruebas de Terraform, TFLint, Trivy, Checkov con 0 fallos (prod), documentación generada |
 | Entrega | Pipelines de Jenkins con copias del state y `state rm` como respaldo | GitHub Actions con OIDC, planes en PR, despliegues con aprobación, procedencia de imágenes; Jenkins ligero y como código |
 
 Crédito al equipo original por el dominio de negocio y el modelo inicial de base de datos, que se migró

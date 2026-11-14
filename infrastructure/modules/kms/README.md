@@ -4,7 +4,7 @@ Customer managed KMS key (yearly rotation) with a key policy for CloudWatch Logs
 
 ## Design
 
-- The root module instantiates it twice: one key in the primary region (Aurora, the database secret, log groups, SNS) and one in us-east-1 for edge resources (WAF logs, the global alarm topic).
+- The root module instantiates it twice: one key in the primary region (the database, its secret, log groups, SNS) and one in us-east-1 for edge resources (WAF logs, the global alarm topic).
 - The key policy delegates to IAM (account root) and adds only the services that cannot use IAM: CloudWatch Logs for this account and region (encryption-context condition) and CloudWatch alarms publishing to encrypted SNS topics.
 
 ## Usage

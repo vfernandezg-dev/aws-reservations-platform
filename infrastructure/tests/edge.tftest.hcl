@@ -34,6 +34,11 @@ run "alb_rejects_requests_without_origin_secret" {
     condition     = aws_lb.this.drop_invalid_header_fields
     error_message = "Invalid HTTP headers must be dropped."
   }
+
+  assert {
+    condition     = aws_lb.this.desync_mitigation_mode == "defensive"
+    error_message = "Use 'defensive' desync mitigation: 'strictest' rejects requests coming from API Gateway."
+  }
 }
 
 run "alb_rejects_weak_origin_secret" {

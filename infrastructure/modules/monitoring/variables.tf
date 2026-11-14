@@ -39,8 +39,8 @@ variable "api_id" {
   type        = string
 }
 
-variable "aurora_cluster_identifier" {
-  description = "Identifier of the Aurora cluster."
+variable "db_instance_identifier" {
+  description = "Identifier of the RDS DB instance."
   type        = string
 }
 

@@ -28,14 +28,14 @@ output "cognito_hosted_ui_url" {
   value       = module.auth.hosted_ui_url
 }
 
-output "aurora_endpoint" {
-  description = "Aurora writer endpoint (reachable only from the application subnets)."
-  value       = module.aurora.endpoint
+output "db_address" {
+  description = "PostgreSQL hostname (reachable only from the application subnets)."
+  value       = module.database.address
 }
 
-output "aurora_secret_arn" {
+output "db_secret_arn" {
   description = "Secrets Manager ARN of the RDS-managed database credentials."
-  value       = module.aurora.master_user_secret_arn
+  value       = module.database.master_user_secret_arn
 }
 
 output "ecs_cluster_name" {

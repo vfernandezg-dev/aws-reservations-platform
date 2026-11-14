@@ -24,7 +24,7 @@
    make plan  ENV=dev        # review the plan output
    make apply ENV=dev
    ```
-   The first apply takes ~15–20 minutes (CloudFront and Aurora are the slowest resources).
+   The first apply takes ~15–20 minutes (CloudFront and RDS are the slowest resources).
 5. **Schema**: `make migrate ENV=dev` (see [db-migrate](db-migrate.md)).
 6. **Verify**: `make smoke ENV=dev`, then open the `cloudfront_url` output in a browser.
 

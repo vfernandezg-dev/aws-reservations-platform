@@ -48,7 +48,7 @@ variable "repository" {
 }
 
 variable "deletion_protection" {
-  description = "Enable deletion protection on stateful resources (Aurora, Cognito, ALB) and keep data on destroy."
+  description = "Enable deletion protection on stateful resources (RDS, Cognito, ALB) and keep data on destroy."
   type        = bool
   default     = true
 }
@@ -210,40 +210,46 @@ variable "use_fargate_spot" {
 }
 
 ###############################################################################
-# Database (Aurora Serverless v2)
+# Database (RDS for PostgreSQL)
 ###############################################################################
 
-variable "aurora_min_capacity" {
-  description = "Minimum ACUs (0 = scale to zero when idle)."
-  type        = number
-  default     = 0.5
+variable "db_instance_class" {
+  description = "RDS instance class (Graviton db.t4g.* recommended)."
+  type        = string
+  default     = "db.t4g.micro"
 }
 
-variable "aurora_max_capacity" {
-  description = "Maximum ACUs."
+variable "db_allocated_storage" {
+  description = "Initial gp3 storage in GiB."
   type        = number
-  default     = 4
+  default     = 20
 }
 
-variable "aurora_instance_count" {
-  description = "Writer + readers (2+ enables Multi-AZ failover)."
+variable "db_max_allocated_storage" {
+  description = "Storage autoscaling limit in GiB (0 disables autoscaling)."
   type        = number
-  default     = 1
+  default     = 100
 }
 
-variable "aurora_backup_retention_days" {
+variable "db_multi_az" {
+  description = "Synchronous standby in a second AZ with automatic failover."
+  type        = bool
+  default     = false
+}
+
+variable "db_backup_retention_days" {
   description = "Automated backup retention in days."
   type        = number
   default     = 7
 }
 
-variable "aurora_enhanced_monitoring_interval" {
+variable "db_enhanced_monitoring_interval" {
   description = "Enhanced Monitoring interval in seconds (0 disables it)."
   type        = number
   default     = 0
 }
 
-variable "aurora_performance_insights" {
+variable "db_performance_insights" {
   description = "Enable Performance Insights."
   type        = bool
   default     = false

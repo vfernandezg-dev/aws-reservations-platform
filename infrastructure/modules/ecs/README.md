@@ -6,7 +6,7 @@ Container runtime for the API on AWS Fargate (Graviton/ARM64).
 
 - Cluster with Container Insights (enhanced observability) and FARGATE / FARGATE_SPOT capacity providers (`use_fargate_spot` for non-production).
 - Hardened task: ARM64, non-root distroless image, read-only root filesystem (plus a writable `/tmp` volume), `initProcessEnabled` and a container health check.
-- ECS injects the database credentials from the Aurora-managed secret (`DB_USER` / `DB_PASSWORD`); they are never stored in the task definition or the state.
+- ECS injects the database credentials from the RDS-managed secret (`DB_USER` / `DB_PASSWORD`); they are never stored in the task definition or the state.
 - Least-privilege roles: the execution role can only read that secret (and decrypt it with the KMS key); the task role has no permissions.
 - Rolling deployments with a circuit breaker and automatic rollback, AZ rebalancing, and target-tracking auto scaling on CPU and ALB requests per target.
 - A second task definition runs database migrations as a one-off task (`scripts/db-migrate.sh`).
@@ -25,9 +25,9 @@ module "ecs" {
   target_group_arn        = module.alb.target_group_arn
   alb_arn_suffix          = module.alb.arn_suffix
   target_group_arn_suffix = module.alb.target_group_arn_suffix
-  db_host                 = module.aurora.endpoint
-  db_name                 = module.aurora.database_name
-  db_secret_arn           = module.aurora.master_user_secret_arn
+  db_host                 = module.database.address
+  db_name                 = module.database.database_name
+  db_secret_arn           = module.database.master_user_secret_arn
   use_fargate_spot        = true
 }
 ```
@@ -72,9 +72,9 @@ module "ecs" {
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_alb_arn_suffix"></a> [alb\_arn\_suffix](#input\_alb\_arn\_suffix) | ALB ARN suffix (for the request-count scaling metric). | `string` | n/a | yes |
-| <a name="input_db_host"></a> [db\_host](#input\_db\_host) | Aurora writer endpoint. | `string` | n/a | yes |
+| <a name="input_db_host"></a> [db\_host](#input\_db\_host) | Database hostname (RDS endpoint address). | `string` | n/a | yes |
 | <a name="input_db_name"></a> [db\_name](#input\_db\_name) | Database (schema) name. | `string` | n/a | yes |
-| <a name="input_db_secret_arn"></a> [db\_secret\_arn](#input\_db\_secret\_arn) | ARN of the Secrets Manager secret holding the database credentials (Aurora-managed). | `string` | n/a | yes |
+| <a name="input_db_secret_arn"></a> [db\_secret\_arn](#input\_db\_secret\_arn) | ARN of the Secrets Manager secret holding the database credentials (RDS-managed). | `string` | n/a | yes |
 | <a name="input_image"></a> [image](#input\_image) | Full container image URI including tag, e.g. <account>.dkr.ecr.<region>.amazonaws.com/reservations-app:<git-sha>. | `string` | n/a | yes |
 | <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Image tag, exposed to the app as APP\_VERSION. | `string` | n/a | yes |
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources (<project>-<environment>). | `string` | n/a | yes |
@@ -85,7 +85,7 @@ module "ecs" {
 | <a name="input_container_port"></a> [container\_port](#input\_container\_port) | Port the container listens on. | `number` | `8080` | no |
 | <a name="input_cpu"></a> [cpu](#input\_cpu) | Task CPU units (256 = 0.25 vCPU). | `number` | `256` | no |
 | <a name="input_cpu_target_percent"></a> [cpu\_target\_percent](#input\_cpu\_target\_percent) | Target average CPU utilization for scaling. | `number` | `60` | no |
-| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Aurora port. | `number` | `5432` | no |
+| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Database port. | `number` | `5432` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Extra non-secret environment variables for the container. | `map(string)` | `{}` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Customer managed KMS key encrypting the log group and the database secret. Null uses AWS managed keys. | `string` | `null` | no |
 | <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Retention of the container log group in days. | `number` | `30` | no |

@@ -1,7 +1,7 @@
 {
   "name": "reservations-api",
   "version": "1.0.0",
-  "description": "Placeholder API for the AWS Reservations Platform (Fastify on ECS Fargate, Aurora PostgreSQL).",
+  "description": "Placeholder API for the AWS Reservations Platform (Fastify on ECS Fargate, RDS for PostgreSQL).",
   "license": "MIT",
   "private": true,
   "type": "module",

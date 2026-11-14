@@ -14,6 +14,6 @@ output "app_security_group_id" {
 }
 
 output "db_security_group_id" {
-  description = "Security group for the Aurora cluster."
+  description = "Security group for the PostgreSQL database."
   value       = aws_security_group.db.id
 }

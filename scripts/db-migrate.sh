@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the database migrations as a one-off ECS Fargate task inside the private
 # application subnets (the database is not reachable from anywhere else).
-# Credentials are injected by ECS from the Aurora-managed secret.
+# Credentials are injected by ECS from the RDS-managed secret.
 #
 # Usage: scripts/db-migrate.sh <env>     (run `make init ENV=<env>` first)
 set -euo pipefail
@@ -32,7 +32,7 @@ task_arn="$(aws ecs run-task \
   --query 'tasks[0].taskArn' \
   --output text)"
 
-echo "Waiting for ${task_arn##*/} (a paused Aurora cluster needs ~15s to resume)..."
+echo "Waiting for ${task_arn##*/} (usually under a minute)..."
 aws ecs wait tasks-stopped --cluster "$cluster" --tasks "$task_arn"
 
 exit_code="$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" \

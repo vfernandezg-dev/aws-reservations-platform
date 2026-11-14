@@ -4,10 +4,10 @@ CloudWatch alarms, SNS notifications and a dashboard covering every tier.
 
 ## Design
 
-- Alarms: ALB 5xx (load balancer and targets), unhealthy targets, ECS CPU and memory, API Gateway 5xx, Aurora ACU utilisation and deadlocks, CloudFront 5xx rate and WAF blocked-request spikes.
+- Alarms: ALB 5xx (load balancer and targets), unhealthy targets, ECS CPU and memory, API Gateway 5xx, database CPU, free storage and freeable memory, CloudFront 5xx rate and WAF blocked-request spikes.
 - CloudFront and WAF metrics only exist in us-east-1, and alarms can only notify a topic in their own region, hence a second (global) SNS topic.
 - KMS-encrypted SNS topics with an optional email subscription.
-- One dashboard: edge (CloudFront, WAF), API, ALB, ECS and Aurora capacity.
+- One dashboard: edge (CloudFront, WAF), API, ALB, ECS and the database.
 
 ## Usage
 
@@ -22,7 +22,7 @@ module "monitoring" {
   ecs_cluster_name           = module.ecs.cluster_name
   ecs_service_name           = module.ecs.service_name
   api_id                     = module.api.api_id
-  aurora_cluster_identifier  = module.aurora.cluster_identifier
+  db_instance_identifier     = module.database.identifier
   cloudfront_distribution_id = module.cdn.distribution_id
   waf_web_acl_name           = module.waf.web_acl_name
 }
@@ -62,8 +62,8 @@ module "monitoring" {
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_alb_arn_suffix"></a> [alb\_arn\_suffix](#input\_alb\_arn\_suffix) | ARN suffix of the internal ALB. | `string` | n/a | yes |
 | <a name="input_api_id"></a> [api\_id](#input\_api\_id) | ID of the HTTP API. | `string` | n/a | yes |
-| <a name="input_aurora_cluster_identifier"></a> [aurora\_cluster\_identifier](#input\_aurora\_cluster\_identifier) | Identifier of the Aurora cluster. | `string` | n/a | yes |
 | <a name="input_cloudfront_distribution_id"></a> [cloudfront\_distribution\_id](#input\_cloudfront\_distribution\_id) | ID of the CloudFront distribution. | `string` | n/a | yes |
+| <a name="input_db_instance_identifier"></a> [db\_instance\_identifier](#input\_db\_instance\_identifier) | Identifier of the RDS DB instance. | `string` | n/a | yes |
 | <a name="input_ecs_cluster_name"></a> [ecs\_cluster\_name](#input\_ecs\_cluster\_name) | Name of the ECS cluster. | `string` | n/a | yes |
 | <a name="input_ecs_service_name"></a> [ecs\_service\_name](#input\_ecs\_service\_name) | Name of the ECS service. | `string` | n/a | yes |
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources (<project>-<environment>). | `string` | n/a | yes |

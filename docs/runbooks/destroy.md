@@ -6,15 +6,15 @@
 make destroy ENV=dev
 ```
 
-`deletion_protection = false` in these environments, so buckets are emptied (`force_destroy`), Aurora is
+`deletion_protection = false` in these environments, so buckets are emptied (`force_destroy`), the database is
 deleted without a final snapshot and KMS keys are scheduled for deletion after 7 days.
 
 Through CI: run *Terraform apply* with `action = destroy` and `confirm = <environment>`.
 
 ## Production
 
-Production is protected on purpose (Aurora/ALB deletion protection, Cognito `ACTIVE` deletion protection,
-non-empty buckets kept, final Aurora snapshot). To decommission it intentionally:
+Production is protected on purpose (RDS/ALB deletion protection, Cognito `ACTIVE` deletion protection,
+non-empty buckets kept, final database snapshot). To decommission it intentionally:
 
 1. Set `deletion_protection = false` in `environments/prod.tfvars` in a reviewed PR and apply it.
 2. Run the destroy; a final snapshot `reservations-prod-final-<suffix>` is kept.

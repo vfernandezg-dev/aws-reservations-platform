@@ -25,7 +25,7 @@ locals {
     }) : { name = key, value = tostring(value) }
   ]
 
-  # Credentials are injected by ECS from the Aurora-managed secret at start
+  # Credentials are injected by ECS from the RDS-managed secret at start
   # time; they never appear in the task definition or Terraform state.
   secrets = [
     { name = "DB_USER", valueFrom = "${var.db_secret_arn}:username::" },

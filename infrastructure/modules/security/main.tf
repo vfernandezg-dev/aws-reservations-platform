@@ -1,7 +1,7 @@
 # Security groups are created together in one module so the SG -> SG references
 # below never form a cycle between modules. Every hop is explicit:
 #
-#   VPC Link --80--> ALB --app_port--> ECS tasks --db_port (5432)--> Aurora
+#   VPC Link --80--> ALB --app_port--> ECS tasks --db_port (5432)--> PostgreSQL
 
 resource "aws_security_group" "vpc_link" {
   #checkov:skip=CKV2_AWS_5:Attached in another module (passed as an input); the scanner cannot follow module outputs.
@@ -36,14 +36,21 @@ resource "aws_security_group" "app" {
   }
 }
 
+# The database is the stateful tier: name_prefix + create_before_destroy let
+# Terraform replace this group (e.g. a new description) while RDS keeps
+# running, by attaching the new group before deleting the old one.
 resource "aws_security_group" "db" {
   #checkov:skip=CKV2_AWS_5:Attached in another module (passed as an input); the scanner cannot follow module outputs.
-  name        = "${var.name}-db"
-  description = "Aurora cluster"
+  name_prefix = "${var.name}-db-"
+  description = "RDS for PostgreSQL"
   vpc_id      = var.vpc_id
 
   tags = {
     Name = "${var.name}-db"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -93,12 +100,12 @@ resource "aws_vpc_security_group_ingress_rule" "app_from_alb" {
 }
 
 ###############################################################################
-# app -> Aurora and AWS APIs
+# app -> PostgreSQL and AWS APIs
 ###############################################################################
 
 resource "aws_vpc_security_group_egress_rule" "app_to_db" {
   security_group_id            = aws_security_group.app.id
-  description                  = "PostgreSQL to Aurora"
+  description                  = "PostgreSQL to the database"
   ip_protocol                  = "tcp"
   from_port                    = var.db_port
   to_port                      = var.db_port

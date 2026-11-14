@@ -1,4 +1,4 @@
-# Local development: PostgreSQL 18 + the API, mirroring the Aurora PostgreSQL 18 setup.
+# Local development: PostgreSQL 18 + the API, mirroring the RDS for PostgreSQL 18 setup.
 #   docker compose up --build
 #   docker compose run --rm migrate
 #   curl localhost:8080/api/public/db-health

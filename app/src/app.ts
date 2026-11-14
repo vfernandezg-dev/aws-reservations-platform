@@ -17,7 +17,7 @@ export interface AppOptions {
  * - GET /health                 ALB target health check. Never touches the DB.
  * - GET /api/health             Public liveness through CloudFront.
  * - GET /api/public/hello       Anonymous demo endpoint.
- * - GET /api/public/db-health   Anonymous DB round-trip (wakes Aurora up).
+ * - GET /api/public/db-health   Anonymous DB round-trip (TLS to RDS PostgreSQL).
  * - GET /api/me                 Protected: API Gateway validates the Cognito
  *                               JWT and forwards the `sub` claim as x-user-sub.
  */
@@ -52,7 +52,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     }
     try {
       const latencyMs = await options.db.ping();
-      return { status: "ok", database: "aurora-postgresql", latencyMs };
+      return { status: "ok", database: "postgresql", latencyMs };
     } catch (error) {
       request.log.error({ err: error }, "database ping failed");
       return reply.code(503).send({ status: "unavailable", reason: "database unreachable" });

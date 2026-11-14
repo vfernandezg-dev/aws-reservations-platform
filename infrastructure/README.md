@@ -9,7 +9,7 @@ state file (`environments/<env>.s3.tfbackend`).
 kms ─┬─ logging ── network ── security
      │                          │
      │        ┌─────────────────┼──────────────────┐
-     │      aurora             alb ── ecs        api ── auth
+     │     database            alb ── ecs        api ── auth
      │                          │                  │
      └─ waf ──────────────── cdn ── storage ───────┘
                                 │
@@ -64,9 +64,9 @@ terraform -chdir=infrastructure test
 | ---- | ------ | ------- |
 | <a name="module_alb"></a> [alb](#module\_alb) | ./modules/alb | n/a |
 | <a name="module_api"></a> [api](#module\_api) | ./modules/api | n/a |
-| <a name="module_aurora"></a> [aurora](#module\_aurora) | ./modules/aurora | n/a |
 | <a name="module_auth"></a> [auth](#module\_auth) | ./modules/auth | n/a |
 | <a name="module_cdn"></a> [cdn](#module\_cdn) | ./modules/cdn | n/a |
+| <a name="module_database"></a> [database](#module\_database) | ./modules/database | n/a |
 | <a name="module_ecs"></a> [ecs](#module\_ecs) | ./modules/ecs | n/a |
 | <a name="module_kms"></a> [kms](#module\_kms) | ./modules/kms | n/a |
 | <a name="module_kms_global"></a> [kms\_global](#module\_kms\_global) | ./modules/kms | n/a |
@@ -98,18 +98,19 @@ terraform -chdir=infrastructure test
 | <a name="input_app_max_capacity"></a> [app\_max\_capacity](#input\_app\_max\_capacity) | Maximum number of tasks. | `number` | `2` | no |
 | <a name="input_app_memory"></a> [app\_memory](#input\_app\_memory) | Fargate task memory (MiB). | `number` | `512` | no |
 | <a name="input_app_min_capacity"></a> [app\_min\_capacity](#input\_app\_min\_capacity) | Minimum number of tasks. | `number` | `1` | no |
-| <a name="input_aurora_backup_retention_days"></a> [aurora\_backup\_retention\_days](#input\_aurora\_backup\_retention\_days) | Automated backup retention in days. | `number` | `7` | no |
-| <a name="input_aurora_enhanced_monitoring_interval"></a> [aurora\_enhanced\_monitoring\_interval](#input\_aurora\_enhanced\_monitoring\_interval) | Enhanced Monitoring interval in seconds (0 disables it). | `number` | `0` | no |
-| <a name="input_aurora_instance_count"></a> [aurora\_instance\_count](#input\_aurora\_instance\_count) | Writer + readers (2+ enables Multi-AZ failover). | `number` | `1` | no |
-| <a name="input_aurora_max_capacity"></a> [aurora\_max\_capacity](#input\_aurora\_max\_capacity) | Maximum ACUs. | `number` | `4` | no |
-| <a name="input_aurora_min_capacity"></a> [aurora\_min\_capacity](#input\_aurora\_min\_capacity) | Minimum ACUs (0 = scale to zero when idle). | `number` | `0.5` | no |
-| <a name="input_aurora_performance_insights"></a> [aurora\_performance\_insights](#input\_aurora\_performance\_insights) | Enable Performance Insights. | `bool` | `false` | no |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | Primary AWS region. Edge resources (CloudFront, WAF) are always in us-east-1. | `string` | `"us-east-1"` | no |
 | <a name="input_az_count"></a> [az\_count](#input\_az\_count) | Number of Availability Zones to use (2 or 3). | `number` | `2` | no |
 | <a name="input_cloudfront_price_class"></a> [cloudfront\_price\_class](#input\_cloudfront\_price\_class) | CloudFront price class. | `string` | `"PriceClass_100"` | no |
 | <a name="input_cognito_mfa"></a> [cognito\_mfa](#input\_cognito\_mfa) | Cognito MFA mode: OFF, OPTIONAL or ON. | `string` | `"OPTIONAL"` | no |
 | <a name="input_cost_center"></a> [cost\_center](#input\_cost\_center) | Cost allocation tag value (CostCenter tag). | `string` | `"portfolio"` | no |
-| <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Enable deletion protection on stateful resources (Aurora, Cognito, ALB) and keep data on destroy. | `bool` | `true` | no |
+| <a name="input_db_allocated_storage"></a> [db\_allocated\_storage](#input\_db\_allocated\_storage) | Initial gp3 storage in GiB. | `number` | `20` | no |
+| <a name="input_db_backup_retention_days"></a> [db\_backup\_retention\_days](#input\_db\_backup\_retention\_days) | Automated backup retention in days. | `number` | `7` | no |
+| <a name="input_db_enhanced_monitoring_interval"></a> [db\_enhanced\_monitoring\_interval](#input\_db\_enhanced\_monitoring\_interval) | Enhanced Monitoring interval in seconds (0 disables it). | `number` | `0` | no |
+| <a name="input_db_instance_class"></a> [db\_instance\_class](#input\_db\_instance\_class) | RDS instance class (Graviton db.t4g.* recommended). | `string` | `"db.t4g.micro"` | no |
+| <a name="input_db_max_allocated_storage"></a> [db\_max\_allocated\_storage](#input\_db\_max\_allocated\_storage) | Storage autoscaling limit in GiB (0 disables autoscaling). | `number` | `100` | no |
+| <a name="input_db_multi_az"></a> [db\_multi\_az](#input\_db\_multi\_az) | Synchronous standby in a second AZ with automatic failover. | `bool` | `false` | no |
+| <a name="input_db_performance_insights"></a> [db\_performance\_insights](#input\_db\_performance\_insights) | Enable Performance Insights. | `bool` | `false` | no |
+| <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Enable deletion protection on stateful resources (RDS, Cognito, ALB) and keep data on destroy. | `bool` | `true` | no |
 | <a name="input_ecr_repository_name"></a> [ecr\_repository\_name](#input\_ecr\_repository\_name) | Name of the ECR repository created by the bootstrap stack. | `string` | `"reservations-app"` | no |
 | <a name="input_enable_auth"></a> [enable\_auth](#input\_enable\_auth) | Require a Cognito JWT on /api/{proxy+} (public and health routes stay open). | `bool` | `true` | no |
 | <a name="input_enable_hosted_ui"></a> [enable\_hosted\_ui](#input\_enable\_hosted\_ui) | Enable Cognito Managed Login with the CloudFront URL as OAuth callback. | `bool` | `false` | no |
@@ -132,14 +133,14 @@ terraform -chdir=infrastructure test
 | <a name="output_app_image_tag"></a> [app\_image\_tag](#output\_app\_image\_tag) | Image tag currently deployed (CI plans reuse it unless a new tag is given). |
 | <a name="output_app_security_group_id"></a> [app\_security\_group\_id](#output\_app\_security\_group\_id) | Security group of the application tasks (used to run one-off tasks). |
 | <a name="output_app_subnet_ids"></a> [app\_subnet\_ids](#output\_app\_subnet\_ids) | Private application subnets (used to run one-off tasks). |
-| <a name="output_aurora_endpoint"></a> [aurora\_endpoint](#output\_aurora\_endpoint) | Aurora writer endpoint (reachable only from the application subnets). |
-| <a name="output_aurora_secret_arn"></a> [aurora\_secret\_arn](#output\_aurora\_secret\_arn) | Secrets Manager ARN of the RDS-managed database credentials. |
 | <a name="output_cloudfront_distribution_id"></a> [cloudfront\_distribution\_id](#output\_cloudfront\_distribution\_id) | CloudFront distribution ID (cache invalidations). |
 | <a name="output_cloudfront_url"></a> [cloudfront\_url](#output\_cloudfront\_url) | Public entry point of the platform (static site + /api/*). |
 | <a name="output_cognito_client_id"></a> [cognito\_client\_id](#output\_cognito\_client\_id) | Cognito SPA app client ID. |
 | <a name="output_cognito_hosted_ui_url"></a> [cognito\_hosted\_ui\_url](#output\_cognito\_hosted\_ui\_url) | Base URL of the Cognito Managed Login pages. |
 | <a name="output_cognito_user_pool_id"></a> [cognito\_user\_pool\_id](#output\_cognito\_user\_pool\_id) | Cognito user pool ID. |
 | <a name="output_dashboard_url"></a> [dashboard\_url](#output\_dashboard\_url) | CloudWatch dashboard for the environment. |
+| <a name="output_db_address"></a> [db\_address](#output\_db\_address) | PostgreSQL hostname (reachable only from the application subnets). |
+| <a name="output_db_secret_arn"></a> [db\_secret\_arn](#output\_db\_secret\_arn) | Secrets Manager ARN of the RDS-managed database credentials. |
 | <a name="output_ecs_cluster_name"></a> [ecs\_cluster\_name](#output\_ecs\_cluster\_name) | ECS cluster name. |
 | <a name="output_ecs_log_group_name"></a> [ecs\_log\_group\_name](#output\_ecs\_log\_group\_name) | CloudWatch log group of the application containers. |
 | <a name="output_ecs_service_name"></a> [ecs\_service\_name](#output\_ecs\_service\_name) | ECS service name. |

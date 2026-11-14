@@ -15,11 +15,11 @@ export function connectionOptions(config: DbConfig): pg.PoolConfig {
     user: config.user,
     password: config.password,
     database: config.database,
-    // Aurora enforces TLS (rds.force_ssl = 1). The server certificate is
+    // RDS enforces TLS (rds.force_ssl = 1). The server certificate is
     // verified against the Amazon RDS certificate authorities.
     ssl: config.tls ? { ca: rdsCertificates.ca, rejectUnauthorized: true } : false,
-    // Aurora Serverless v2 may be paused (scale to zero): the first
-    // connection resumes it, which can take ~15 seconds.
+    // Generous timeout: a Multi-AZ failover or a cold start after
+    // maintenance can take a few seconds to accept connections.
     connectionTimeoutMillis: 30_000,
     max: 5,
     idleTimeoutMillis: 60_000,

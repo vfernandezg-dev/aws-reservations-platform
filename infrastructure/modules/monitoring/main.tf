@@ -18,8 +18,8 @@ locals {
     ApiId = var.api_id
     Stage = "$default"
   }
-  aurora_dimensions = {
-    DBClusterIdentifier = var.aurora_cluster_identifier
+  db_dimensions = {
+    DBInstanceIdentifier = var.db_instance_identifier
   }
 
   # Regional alarms, data-driven to keep them consistent.
@@ -78,23 +78,32 @@ locals {
       operator    = "GreaterThanOrEqualToThreshold"
       dimensions  = local.api_dimensions
     }
-    aurora-acu-high = {
-      description = "Aurora is running close to its maximum capacity."
+    db-cpu-high = {
+      description = "The database CPU is saturated."
       namespace   = "AWS/RDS"
-      metric      = "ACUUtilization"
+      metric      = "CPUUtilization"
       statistic   = "Average"
-      threshold   = 90
+      threshold   = 80
       operator    = "GreaterThanOrEqualToThreshold"
-      dimensions  = local.aurora_dimensions
+      dimensions  = local.db_dimensions
     }
-    aurora-deadlocks = {
-      description = "Deadlocks detected in Aurora."
+    db-storage-low = {
+      description = "Less than 2 GiB of free storage left (autoscaling may be at its limit)."
       namespace   = "AWS/RDS"
-      metric      = "Deadlocks"
-      statistic   = "Sum"
-      threshold   = 1
-      operator    = "GreaterThanOrEqualToThreshold"
-      dimensions  = local.aurora_dimensions
+      metric      = "FreeStorageSpace"
+      statistic   = "Minimum"
+      threshold   = 2147483648
+      operator    = "LessThanThreshold"
+      dimensions  = local.db_dimensions
+    }
+    db-memory-low = {
+      description = "Less than 64 MiB of freeable memory on the database instance."
+      namespace   = "AWS/RDS"
+      metric      = "FreeableMemory"
+      statistic   = "Minimum"
+      threshold   = 67108864
+      operator    = "LessThanThreshold"
+      dimensions  = local.db_dimensions
     }
   }
 }
@@ -267,12 +276,12 @@ resource "aws_cloudwatch_dashboard" "this" {
       {
         type = "metric", x = 12, y = 12, width = 12, height = 6
         properties = {
-          title  = "Aurora Serverless v2: capacity (ACU) & connections"
+          title  = "RDS PostgreSQL: CPU & connections"
           region = local.region
           period = 60
           metrics = [
-            ["AWS/RDS", "ServerlessDatabaseCapacity", "DBClusterIdentifier", var.aurora_cluster_identifier, { stat = "Average" }],
-            ["AWS/RDS", "DatabaseConnections", "DBClusterIdentifier", var.aurora_cluster_identifier, { stat = "Sum", yAxis = "right" }],
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", var.db_instance_identifier, { stat = "Average" }],
+            ["AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", var.db_instance_identifier, { stat = "Maximum", yAxis = "right" }],
           ]
         }
       },

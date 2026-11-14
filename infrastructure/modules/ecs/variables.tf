@@ -97,12 +97,12 @@ variable "use_fargate_spot" {
 }
 
 variable "db_host" {
-  description = "Aurora writer endpoint."
+  description = "Database hostname (RDS endpoint address)."
   type        = string
 }
 
 variable "db_port" {
-  description = "Aurora port."
+  description = "Database port."
   type        = number
   default     = 5432
 }
@@ -113,7 +113,7 @@ variable "db_name" {
 }
 
 variable "db_secret_arn" {
-  description = "ARN of the Secrets Manager secret holding the database credentials (Aurora-managed)."
+  description = "ARN of the Secrets Manager secret holding the database credentials (RDS-managed)."
   type        = string
 }
 

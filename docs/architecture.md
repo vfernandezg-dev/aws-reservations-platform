@@ -10,8 +10,8 @@ how traffic flows, how failures are contained, and where each security control l
 | Static site | Viewer → CloudFront → S3 (OAC) | `CachingOptimized`; bucket readable only by this distribution (`AWS:SourceArn` condition) |
 | Anonymous API | Viewer → CloudFront → HTTP API `ANY /api/public/{proxy+}` → VPC Link → ALB → task | `x-user-*` headers removed by API Gateway before the integration |
 | Authenticated API | Same path, route `ANY /api/{proxy+}` | JWT authorizer validates issuer, audience/client_id and expiry; `sub`/`email` claims overwrite `x-user-*` |
-| Health | `GET /api/health` (public), `GET /health` (ALB only) | ALB health checks never touch the database, so a paused Aurora does not drain tasks |
-| Database | Task → Aurora writer endpoint (TLS, port 5432) | Credentials injected by ECS from the RDS-managed secret |
+| Health | `GET /api/health` (public), `GET /health` (ALB only) | ALB health checks never touch the database, so a database failover or restart does not drain tasks |
+| Database | Task → RDS PostgreSQL endpoint (TLS, port 5432; the DNS name follows Multi-AZ failover) | Credentials injected by ECS from the RDS-managed secret |
 | Migrations | `scripts/db-migrate.sh` → one-off Fargate task (same image) | Runs inside the app subnets; files applied once, tracked in `schema_migrations` |
 | Egress to AWS APIs | Task → NAT gateway (dev/staging) or interface endpoints (prod) | ECR image layers use the free S3 gateway endpoint |
 | Logs | ALB → S3, CloudFront (logging v2) → S3, VPC Flow Logs → S3, app/API/DB/WAF → CloudWatch Logs | Central log bucket with lifecycle; CloudWatch groups encrypted with KMS |
@@ -28,10 +28,10 @@ matches; everything else receives a 403. `scripts/smoke-test.sh` verifies this o
 
 | Failure | Impact | Mitigation |
 |---|---|---|
-| One AZ down | Half of the tasks/NAT/ALB nodes | Tasks rebalanced across AZs; prod has a NAT per AZ; Aurora fails over to the reader in the other AZ |
+| One AZ down | Half of the tasks/NAT/ALB nodes | Tasks rebalanced across AZs; prod has a NAT per AZ; RDS fails over to the synchronous standby in the other AZ (~1–2 min) |
 | Task crash / bad deploy | Errors on some requests | Container + ALB health checks; deployment circuit breaker rolls back automatically |
-| Traffic spike | Latency | Target tracking (CPU, requests per target), Aurora ACU scaling, API Gateway throttling, WAF rate limit |
-| Aurora paused (dev) | First query ~15 s | 30 s connect timeout in the app; health checks independent of the DB |
+| Traffic spike | Latency | Target tracking (CPU, requests per target), database storage autoscaling, API Gateway throttling, WAF rate limit |
+| Database failover or maintenance | Connections dropped for ~1–2 min | 30 s connect timeout and pooled reconnects in the app; health checks independent of the DB |
 | Data corruption / human error | Data loss | PITR within the retention window, final snapshot on deletion, deletion protection in prod |
 | Region outage | Full outage | Out of scope today; multi-region DR is on the roadmap |
 
@@ -43,9 +43,9 @@ matches; everything else receives a 403. `scripts/smoke-test.sh` verifies this o
 | WAF bypass via `execute-api` | Origin secret header + internal ALB 403 | `modules/cdn`, `modules/alb` |
 | Identity spoofing | JWT authorizer; identity headers stripped/overwritten | `modules/api` |
 | Lateral movement | SG-to-SG chain, isolated data subnets, no public IPs | `modules/security`, `modules/network` |
-| Credential leakage | RDS-managed password, ECS secrets injection, OIDC in CI, gitleaks | `modules/aurora`, `modules/ecs`, `bootstrap`, CI |
-| Data exposure at rest | KMS CMKs (Aurora, secret, logs, SNS, state), SSE-S3 for buckets | `modules/kms`, `bootstrap` |
-| Data exposure in transit | HTTPS-only viewers, TLS to origins, `rds.force_ssl` | `modules/cdn`, `modules/aurora` |
+| Credential leakage | RDS-managed password, ECS secrets injection, OIDC in CI, gitleaks | `modules/database`, `modules/ecs`, `bootstrap`, CI |
+| Data exposure at rest | KMS CMKs (database, secret, logs, SNS, state), SSE-S3 for buckets | `modules/kms`, `bootstrap` |
+| Data exposure in transit | HTTPS-only viewers, TLS to origins, `rds.force_ssl` | `modules/cdn`, `modules/database` |
 | Container compromise | Distroless non-root, read-only rootfs, task role without permissions | `app/Dockerfile`, `modules/ecs` |
 | Supply chain | SHA-pinned actions, digest-pinned images, SBOM, provenance attestation, Dependabot | `.github/` |
 | Drift / unreviewed change | PR plans, environment approvals, saved-plan apply, `check` blocks | `.github/workflows`, `infrastructure/checks.tf` |
@@ -53,10 +53,10 @@ matches; everything else receives a 403. `scripts/smoke-test.sh` verifies this o
 ## 4. Observability
 
 - **Metrics & alarms** (`modules/monitoring`): ALB 5xx, target 5xx, unhealthy targets, ECS CPU and memory,
-  API Gateway 5xx, Aurora ACU utilisation and deadlocks (regional topic); CloudFront 5xx rate and WAF
+  API Gateway 5xx, database CPU, free storage and freeable memory (regional topic); CloudFront 5xx rate and WAF
   blocked-request spikes (us-east-1 topic). All alarms notify KMS-encrypted SNS topics.
 - **Dashboard**: one per environment, linked from the `dashboard_url` output.
-- **Logs**: API access logs (JSON), container logs, Aurora PostgreSQL logs (connections, DDL, slow statements, IAM auth errors), WAF logs (redacted),
+- **Logs**: API access logs (JSON), container logs, PostgreSQL logs (connections, DDL, slow statements, IAM auth errors), WAF logs (redacted),
   ALB/CloudFront/VPC Flow Logs in S3.
 - **Container Insights** with enhanced observability on the ECS cluster.
 

@@ -32,10 +32,11 @@ app_min_capacity = 2
 app_max_capacity = 6
 use_fargate_spot = false
 
-# Aurora Serverless v2: writer + reader in different AZs (Multi-AZ)
-aurora_min_capacity                 = 0.5
-aurora_max_capacity                 = 8
-aurora_instance_count               = 2
-aurora_backup_retention_days        = 14
-aurora_enhanced_monitoring_interval = 60
-aurora_performance_insights         = true
+# RDS PostgreSQL: Multi-AZ standby with automatic failover
+db_instance_class               = "db.t4g.small"
+db_allocated_storage            = 20
+db_max_allocated_storage        = 200
+db_multi_az                     = true
+db_backup_retention_days        = 14
+db_enhanced_monitoring_interval = 60
+db_performance_insights         = true

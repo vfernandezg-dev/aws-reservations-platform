@@ -10,7 +10,10 @@ resource "aws_lb" "this" {
   security_groups            = [var.security_group_id]
   subnets                    = var.subnet_ids
   drop_invalid_header_fields = true
-  desync_mitigation_mode     = "strictest"
+  # "defensive" (AWS default) blocks severe and mitigates ambiguous HTTP desync
+  # requests. "strictest" also rejects merely "acceptable" requests, which
+  # includes the ones API Gateway sends through the VPC Link (HTTP 400).
+  desync_mitigation_mode     = "defensive"
   enable_deletion_protection = var.deletion_protection
   idle_timeout               = 60
 
