@@ -104,7 +104,7 @@ variable "db_host" {
 variable "db_port" {
   description = "Aurora port."
   type        = number
-  default     = 3306
+  default     = 5432
 }
 
 variable "db_name" {

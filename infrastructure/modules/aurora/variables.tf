@@ -14,15 +14,15 @@ variable "security_group_id" {
 }
 
 variable "engine_version" {
-  description = "Aurora MySQL engine version. 8.4.mysql_aurora.* is the MySQL 8.4 LTS-compatible line."
+  description = "Aurora PostgreSQL engine version (must support Serverless v2 scale to zero)."
   type        = string
-  default     = "8.4.mysql_aurora.8.4.10"
+  default     = "18.6"
 }
 
 variable "parameter_group_family" {
   description = "Cluster parameter group family matching engine_version."
   type        = string
-  default     = "aurora-mysql8.4"
+  default     = "aurora-postgresql18"
 }
 
 variable "database_name" {
@@ -40,7 +40,7 @@ variable "master_username" {
 variable "port" {
   description = "Database port."
   type        = number
-  default     = 3306
+  default     = 5432
 }
 
 variable "min_capacity" {

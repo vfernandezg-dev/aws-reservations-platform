@@ -1,7 +1,7 @@
 # Security groups are created together in one module so the SG -> SG references
 # below never form a cycle between modules. Every hop is explicit:
 #
-#   VPC Link --80--> ALB --app_port--> ECS tasks --db_port--> Aurora
+#   VPC Link --80--> ALB --app_port--> ECS tasks --db_port (5432)--> Aurora
 
 resource "aws_security_group" "vpc_link" {
   #checkov:skip=CKV2_AWS_5:Attached in another module (passed as an input); the scanner cannot follow module outputs.
@@ -98,7 +98,7 @@ resource "aws_vpc_security_group_ingress_rule" "app_from_alb" {
 
 resource "aws_vpc_security_group_egress_rule" "app_to_db" {
   security_group_id            = aws_security_group.app.id
-  description                  = "MySQL to Aurora"
+  description                  = "PostgreSQL to Aurora"
   ip_protocol                  = "tcp"
   from_port                    = var.db_port
   to_port                      = var.db_port
@@ -118,7 +118,7 @@ resource "aws_vpc_security_group_egress_rule" "app_https" {
 
 resource "aws_vpc_security_group_ingress_rule" "db_from_app" {
   security_group_id            = aws_security_group.db.id
-  description                  = "MySQL from ECS tasks"
+  description                  = "PostgreSQL from ECS tasks"
   ip_protocol                  = "tcp"
   from_port                    = var.db_port
   to_port                      = var.db_port

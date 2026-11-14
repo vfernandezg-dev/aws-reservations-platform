@@ -5,7 +5,7 @@ All security groups of the platform, chained tier by tier with security-group re
 ## Design
 
 ```text
-VPC Link --80--> internal ALB --8080--> ECS tasks --3306--> Aurora
+VPC Link --80--> internal ALB --8080--> ECS tasks --5432--> Aurora
 ```
 
 - Keeping every group in one module avoids cross-module dependency cycles between the ALB, API and ECS modules.
@@ -61,7 +61,7 @@ module "security" {
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for all resources (<project>-<environment>). | `string` | n/a | yes |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC the security groups belong to. | `string` | n/a | yes |
 | <a name="input_app_port"></a> [app\_port](#input\_app\_port) | Port the application container listens on. | `number` | `8080` | no |
-| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Port of the database engine. | `number` | `3306` | no |
+| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Port of the database engine. | `number` | `5432` | no |
 
 ### Outputs
 

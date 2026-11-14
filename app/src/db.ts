@@ -1,4 +1,5 @@
-import mysql from "mysql2/promise";
+import rdsCertificates from "aws-ssl-profiles";
+import pg from "pg";
 import type { DbConfig } from "./config.ts";
 
 export interface Database {
@@ -7,27 +8,28 @@ export interface Database {
   close(): Promise<void>;
 }
 
-export function connectionOptions(config: DbConfig): mysql.PoolOptions {
+export function connectionOptions(config: DbConfig): pg.PoolConfig {
   return {
     host: config.host,
     port: config.port,
     user: config.user,
     password: config.password,
     database: config.database,
-    // Aurora enforces TLS (require_secure_transport = ON). The "Amazon RDS"
-    // profile bundles the RDS certificate authorities.
-    ...(config.tls ? { ssl: "Amazon RDS" } : {}),
+    // Aurora enforces TLS (rds.force_ssl = 1). The server certificate is
+    // verified against the Amazon RDS certificate authorities.
+    ssl: config.tls ? { ca: rdsCertificates.ca, rejectUnauthorized: true } : false,
     // Aurora Serverless v2 may be paused (scale to zero): the first
     // connection resumes it, which can take ~15 seconds.
-    connectTimeout: 30_000,
-    connectionLimit: 5,
-    waitForConnections: true,
-    enableKeepAlive: true,
+    connectionTimeoutMillis: 30_000,
+    max: 5,
+    idleTimeoutMillis: 60_000,
+    keepAlive: true,
+    application_name: "reservations-api",
   };
 }
 
 export function createDatabase(config: DbConfig): Database {
-  const pool = mysql.createPool(connectionOptions(config));
+  const pool = new pg.Pool(connectionOptions(config));
 
   return {
     async ping() {

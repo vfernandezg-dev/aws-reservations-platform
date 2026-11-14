@@ -1,13 +1,13 @@
-# Aurora Serverless v2 (MySQL 8.4)
+# Aurora Serverless v2 (PostgreSQL 18)
 
-Aurora MySQL 8.4-compatible cluster with Serverless v2 instances in the isolated data subnets.
+Aurora PostgreSQL 18 cluster with Serverless v2 instances in the isolated data subnets.
 
 ## Design
 
 - **Scale to zero**: with `min_capacity = 0` the cluster pauses after `seconds_until_auto_pause` of inactivity, so an idle dev or staging database costs little more than its storage. Production keeps a warm minimum and a reader in another AZ for Multi-AZ failover (`instance_count = 2`).
 - **No password in Terraform**: `manage_master_user_password = true` lets RDS generate and rotate the master password in Secrets Manager.
-- Encrypted with a customer managed KMS key (storage, Performance Insights, the secret and the log groups), TLS enforced (`require_secure_transport = ON`), IAM database authentication enabled.
-- Audit (connections, DDL, DCL), error and slow-query logs are exported to pre-created log groups with managed retention.
+- Encrypted with a customer managed KMS key (storage, Performance Insights, the secret and the log groups), TLS enforced (`rds.force_ssl = 1`), IAM database authentication enabled.
+- Audit trail through the cluster parameter group: connections, disconnections, every DDL statement and statements slower than 2 s, exported (with IAM authentication errors) to pre-created log groups with managed retention.
 - Backups with point-in-time recovery, deletion protection and a uniquely named final snapshot in protected environments.
 
 ## Usage
@@ -65,7 +65,7 @@ module "aurora" {
 | <a name="input_backup_retention_days"></a> [backup\_retention\_days](#input\_backup\_retention\_days) | Days to keep automated backups. | `number` | `7` | no |
 | <a name="input_database_name"></a> [database\_name](#input\_database\_name) | Name of the initial database (schema). | `string` | `"reservations"` | no |
 | <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Prevent the cluster from being deleted. | `bool` | `true` | no |
-| <a name="input_engine_version"></a> [engine\_version](#input\_engine\_version) | Aurora MySQL engine version. 8.4.mysql\_aurora.* is the MySQL 8.4 LTS-compatible line. | `string` | `"8.4.mysql_aurora.8.4.10"` | no |
+| <a name="input_engine_version"></a> [engine\_version](#input\_engine\_version) | Aurora PostgreSQL engine version (must support Serverless v2 scale to zero). | `string` | `"18.6"` | no |
 | <a name="input_enhanced_monitoring_interval"></a> [enhanced\_monitoring\_interval](#input\_enhanced\_monitoring\_interval) | Enhanced Monitoring granularity in seconds (0 disables it). | `number` | `0` | no |
 | <a name="input_instance_count"></a> [instance\_count](#input\_instance\_count) | Number of db.serverless instances: 1 = writer only, 2+ = writer plus reader(s) for Multi-AZ failover. | `number` | `1` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Customer managed KMS key for storage, Performance Insights, the master secret and log groups. Null uses AWS managed keys. | `string` | `null` | no |
@@ -73,9 +73,9 @@ module "aurora" {
 | <a name="input_master_username"></a> [master\_username](#input\_master\_username) | Master user name. The password is managed by RDS in Secrets Manager. | `string` | `"app_admin"` | no |
 | <a name="input_max_capacity"></a> [max\_capacity](#input\_max\_capacity) | Maximum Aurora Capacity Units. | `number` | `4` | no |
 | <a name="input_min_capacity"></a> [min\_capacity](#input\_min\_capacity) | Minimum Aurora Capacity Units. 0 enables scale-to-zero (auto-pause) for idle environments. | `number` | `0.5` | no |
-| <a name="input_parameter_group_family"></a> [parameter\_group\_family](#input\_parameter\_group\_family) | Cluster parameter group family matching engine\_version. | `string` | `"aurora-mysql8.4"` | no |
+| <a name="input_parameter_group_family"></a> [parameter\_group\_family](#input\_parameter\_group\_family) | Cluster parameter group family matching engine\_version. | `string` | `"aurora-postgresql18"` | no |
 | <a name="input_performance_insights_enabled"></a> [performance\_insights\_enabled](#input\_performance\_insights\_enabled) | Enable Performance Insights on the instances. | `bool` | `false` | no |
-| <a name="input_port"></a> [port](#input\_port) | Database port. | `number` | `3306` | no |
+| <a name="input_port"></a> [port](#input\_port) | Database port. | `number` | `5432` | no |
 | <a name="input_seconds_until_auto_pause"></a> [seconds\_until\_auto\_pause](#input\_seconds\_until\_auto\_pause) | Idle seconds before the cluster pauses (only when min\_capacity = 0). | `number` | `300` | no |
 | <a name="input_skip_final_snapshot"></a> [skip\_final\_snapshot](#input\_skip\_final\_snapshot) | Skip the final snapshot on deletion (only for disposable environments). | `bool` | `false` | no |
 

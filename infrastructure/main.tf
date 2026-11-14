@@ -57,6 +57,7 @@ module "security" {
   name     = local.name
   vpc_id   = module.network.vpc_id
   app_port = local.app_port
+  db_port  = local.db_port
 }
 
 ###############################################################################
@@ -69,6 +70,7 @@ module "aurora" {
   name                         = local.name
   subnet_ids                   = module.network.data_subnet_ids
   security_group_id            = module.security.db_security_group_id
+  port                         = local.db_port
   min_capacity                 = var.aurora_min_capacity
   max_capacity                 = var.aurora_max_capacity
   instance_count               = var.aurora_instance_count

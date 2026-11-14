@@ -52,7 +52,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     }
     try {
       const latencyMs = await options.db.ping();
-      return { status: "ok", database: "aurora-mysql", latencyMs };
+      return { status: "ok", database: "aurora-postgresql", latencyMs };
     } catch (error) {
       request.log.error({ err: error }, "database ping failed");
       return reply.code(503).send({ status: "unavailable", reason: "database unreachable" });

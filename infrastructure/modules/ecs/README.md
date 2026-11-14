@@ -85,7 +85,7 @@ module "ecs" {
 | <a name="input_container_port"></a> [container\_port](#input\_container\_port) | Port the container listens on. | `number` | `8080` | no |
 | <a name="input_cpu"></a> [cpu](#input\_cpu) | Task CPU units (256 = 0.25 vCPU). | `number` | `256` | no |
 | <a name="input_cpu_target_percent"></a> [cpu\_target\_percent](#input\_cpu\_target\_percent) | Target average CPU utilization for scaling. | `number` | `60` | no |
-| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Aurora port. | `number` | `3306` | no |
+| <a name="input_db_port"></a> [db\_port](#input\_db\_port) | Aurora port. | `number` | `5432` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | Extra non-secret environment variables for the container. | `map(string)` | `{}` | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | Customer managed KMS key encrypting the log group and the database secret. Null uses AWS managed keys. | `string` | `null` | no |
 | <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Retention of the container log group in days. | `number` | `30` | no |

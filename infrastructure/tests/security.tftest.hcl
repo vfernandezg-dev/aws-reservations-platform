@@ -42,7 +42,7 @@ run "tiers_are_chained_by_security_group" {
   }
 
   assert {
-    condition     = aws_vpc_security_group_ingress_rule.db_from_app.from_port == 3306
-    error_message = "Database ingress must be limited to the MySQL port."
+    condition     = aws_vpc_security_group_ingress_rule.db_from_app.from_port == 5432
+    error_message = "Database ingress must be limited to the PostgreSQL port."
   }
 }

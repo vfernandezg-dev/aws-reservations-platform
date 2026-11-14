@@ -17,5 +17,5 @@ variable "app_port" {
 variable "db_port" {
   description = "Port of the database engine."
   type        = number
-  default     = 3306
+  default     = 5432
 }

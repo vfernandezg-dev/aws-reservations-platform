@@ -39,7 +39,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       DB_HOST && DB_USER && DB_PASSWORD && DB_NAME
         ? {
             host: DB_HOST,
-            port: intFromEnv("DB_PORT", 3306),
+            port: intFromEnv("DB_PORT", 5432),
             user: DB_USER,
             password: DB_PASSWORD,
             database: DB_NAME,

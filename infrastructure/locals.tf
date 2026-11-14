@@ -12,6 +12,7 @@ locals {
   }
 
   app_port      = 8080
+  db_port       = 5432
   app_image     = "${data.aws_ecr_repository.app.repository_url}:${var.app_image_tag}"
   origin_header = "X-Origin-Verify"
 }

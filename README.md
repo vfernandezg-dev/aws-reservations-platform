@@ -15,7 +15,7 @@ reliability and cost controls built in, and shipped through a fully automated CI
 
 **Highlights**
 
-- 🌐 **Serverless edge to private core**: CloudFront + WAF → API Gateway HTTP API (Cognito JWT) → VPC Link → *internal* ALB → ECS Fargate (Graviton) → Aurora Serverless v2 (MySQL 8.4).
+- 🌐 **Serverless edge to private core**: CloudFront + WAF → API Gateway HTTP API (Cognito JWT) → VPC Link → *internal* ALB → ECS Fargate (Graviton) → Aurora Serverless v2 (PostgreSQL 18).
 - 🔐 **Defense in depth**: nothing in the VPC is internet-facing, SG-to-SG chaining, origin-secret header against WAF bypass, KMS CMKs, RDS-managed secrets (no password in Terraform), TLS everywhere it leaves the VPC.
 - 💸 **Cost-aware by design**: Aurora scales to **zero** when idle, Fargate Spot + ARM64, single NAT in non-prod, per-environment sizing in `tfvars`.
 - 🧪 **Tested & scanned**: 24 `terraform test` cases with a mocked provider, TFLint, Trivy, Checkov (**0 failures** on production settings, every exception justified inline), gitleaks, hadolint, shellcheck.
@@ -71,7 +71,7 @@ flowchart LR
         ecs[ECS Fargate · ARM64<br/>auto scaling]
       end
       subgraph data["Isolated data subnets"]
-        aurora[(Aurora Serverless v2<br/>MySQL 8.4)]
+        aurora[(Aurora Serverless v2<br/>PostgreSQL 18)]
       end
     end
 
@@ -114,7 +114,7 @@ Static content (`/*`) is served from S3 through **Origin Access Control**; only 
 | App (private) | `10.x.10.0/24`, `10.x.11.0/24` | VPC Link ENIs, internal ALB, Fargate tasks, interface endpoints | NAT gateway (same AZ) |
 | Data (isolated) | `10.x.20.0/24`, `10.x.21.0/24` | Aurora instances | **none** |
 
-Security groups are chained by reference: `VPC Link → ALB:80 → tasks:8080 → Aurora:3306`. No ingress rule uses a CIDR.
+Security groups are chained by reference: `VPC Link → ALB:80 → tasks:8080 → Aurora:5432`. No ingress rule uses a CIDR.
 
 ### AWS services
 
@@ -127,7 +127,7 @@ Security groups are chained by reference: `VPC Link → ALB:80 → tasks:8080 �
 | Cognito | Identity | Essentials tier, Managed Login v2, TOTP MFA, SRP + code flow (PKCE) only |
 | Elastic Load Balancing | Private routing | Internal ALB, header-based allow rule, invalid-header dropping |
 | ECS on Fargate | Compute | ARM64, distroless non-root image, read-only rootfs, circuit breaker, target tracking |
-| Aurora Serverless v2 | Database | MySQL 8.4-compatible, 0–8 ACU, Multi-AZ reader in prod, audit logs, PITR |
+| Aurora Serverless v2 | Database | PostgreSQL 18, 0–8 ACU, Multi-AZ reader in prod, connection/DDL audit logging, PITR |
 | Secrets Manager | Credentials | Master password generated and rotated by RDS, injected by ECS |
 | KMS | Encryption | Customer managed keys (rotation) for Aurora, secrets, logs, SNS, state |
 | ECR | Images | Immutable tags, scan on push, lifecycle policy |
@@ -147,7 +147,7 @@ Each module is documented in its own README under [`infrastructure/modules`](inf
 | **Origin protection** | Secret `X-Origin-Verify` header added by CloudFront; the internal ALB answers 403 without it, so calling the `execute-api` URL directly cannot bypass WAF |
 | **Network** | No public IPs on workloads, internal ALB, isolated data subnets without a default route, SG-to-SG rules, locked default SG, VPC Flow Logs |
 | **Compute** | Distroless non-root image, read-only root filesystem, least-privilege task/execution roles, image scanning in CI and ECR |
-| **Data** | Aurora encrypted with a CMK, TLS enforced (`require_secure_transport`), IAM DB auth enabled, deletion protection, backups + PITR, audit logs |
+| **Data** | Aurora encrypted with a CMK, TLS enforced (`rds.force_ssl`), IAM DB auth enabled, deletion protection, backups + PITR, connection and DDL audit logging |
 | **Secrets** | No secret in code, variables or state for the database: RDS manages the password; ECS injects it at runtime |
 | **Supply chain** | Actions pinned by commit SHA, Dependabot, SBOM + signed build provenance, base images pinned by digest |
 | **Delivery** | OIDC roles scoped per repo/branch/environment, read-only plan role, environment reviewers before apply, encrypted state with locking |
@@ -238,7 +238,7 @@ single NAT outside production, short log retention in dev, and `make destroy` fo
 | [api](infrastructure/modules/api) | HTTP API, JWT authorizer, VPC Link |
 | [alb](infrastructure/modules/alb) | Internal ALB with origin verification |
 | [ecs](infrastructure/modules/ecs) | Fargate cluster, service, scaling, migrations task |
-| [aurora](infrastructure/modules/aurora) | Aurora Serverless v2 MySQL 8.4 |
+| [aurora](infrastructure/modules/aurora) | Aurora Serverless v2 PostgreSQL 18 |
 | [monitoring](infrastructure/modules/monitoring) | Alarms, SNS, dashboard |
 
 ---
@@ -344,7 +344,7 @@ Architecture Decision Records in [`docs/adr`](docs/adr):
 2. [Single root module, one tfvars per environment](docs/adr/0002-single-root-module-per-environment-tfvars.md)
 3. [HTTP API + VPC Link + internal ALB](docs/adr/0003-http-api-vpc-link-internal-alb.md)
 4. [ECS Fargate on Graviton instead of EC2](docs/adr/0004-ecs-fargate-arm64.md)
-5. [Aurora Serverless v2 with RDS-managed credentials](docs/adr/0005-aurora-serverless-v2-managed-secret.md)
+5. [Aurora Serverless v2 PostgreSQL with RDS-managed credentials](docs/adr/0005-aurora-serverless-v2-postgresql.md)
 6. [GitHub OIDC instead of static access keys](docs/adr/0006-github-oidc-ci-credentials.md)
 
 ---
@@ -372,13 +372,13 @@ The current version is my **complete redesign and modernization** of that work. 
 | State & secrets | Local state and `tfvars` with the DB password committed to git | Remote encrypted state with locking; RDS-managed password, nothing secret in git |
 | Compute | 2 fixed EC2 + ASG serving a PHP placeholder | ECS Fargate ARM64, distroless container, auto scaling, circuit breaker |
 | API & auth | REST API with an authorizer that was never attached; public ALB | HTTP API with Cognito JWT, private VPC Link, internal ALB with origin secret |
-| Database | RDS MySQL 8.0 (now in paid Extended Support) | Aurora Serverless v2 MySQL 8.4 with scale-to-zero |
+| Database | RDS MySQL 8.0 (now in paid Extended Support) | Aurora Serverless v2 PostgreSQL 18 with scale-to-zero; schema ported from MySQL |
 | Edge | Conflicting bucket policies, KMS setup that blocked OAC, Host header breaking the API | OAC, managed CloudFront policies, logging v2, WAF with correct logging |
 | Quality | No linting, no tests, 62 failed Checkov checks | 24 Terraform tests, TFLint, Trivy, Checkov 0 failures (prod), docs generated |
 | Delivery | Jenkins pipelines with state backups and `state rm` fallbacks | GitHub Actions with OIDC, PR plans, gated applies, image provenance; slim Jenkins as code |
 
 Credit to the original team for the business domain and the initial database model, which was
-ported (and fixed) as the migrations in [`app/migrations`](app/migrations).
+ported to PostgreSQL (and fixed) as the migrations in [`app/migrations`](app/migrations).
 
 ## License
 

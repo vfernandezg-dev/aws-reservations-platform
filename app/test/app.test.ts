@@ -55,7 +55,7 @@ describe("GET /api/public/db-health", () => {
     app = buildApp({ version: "t", logLevel: "silent", db: fakeDb(() => Promise.resolve(12)) });
     const response = await app.inject({ method: "GET", url: "/api/public/db-health" });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: "ok", database: "aurora-mysql", latencyMs: 12 });
+    expect(response.json()).toEqual({ status: "ok", database: "aurora-postgresql", latencyMs: 12 });
   });
 
   it("returns 503 when the database is unreachable", async () => {

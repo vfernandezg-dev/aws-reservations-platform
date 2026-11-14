@@ -1,7 +1,9 @@
 locals {
   # Auto-pause is only valid when the cluster can scale to 0 ACU.
   scale_to_zero = var.min_capacity == 0
-  log_exports   = ["audit", "error", "slowquery"]
+  # Aurora PostgreSQL writes connections, DDL and slow statements to the
+  # "postgresql" log; failed IAM database authentications go to their own log.
+  log_exports = ["postgresql", "iam-db-auth-error"]
 }
 
 resource "aws_db_subnet_group" "this" {
@@ -21,36 +23,31 @@ resource "aws_rds_cluster_parameter_group" "this" {
 
   # Reject unencrypted client connections.
   parameter {
-    name  = "require_secure_transport"
-    value = "ON"
-  }
-
-  parameter {
-    name  = "slow_query_log"
+    name  = "rds.force_ssl"
     value = "1"
   }
 
-  # Audit connections, DDL and privilege changes (low volume, high value).
+  # Audit trail: connections, disconnections and every DDL statement
+  # (low volume, high value).
   parameter {
-    name  = "server_audit_logging"
+    name  = "log_connections"
     value = "1"
   }
 
   parameter {
-    name  = "server_audit_events"
-    value = "CONNECT,QUERY_DDL,QUERY_DCL"
-  }
-
-  parameter {
-    name  = "long_query_time"
-    value = "2"
-  }
-
-  # The master user has no SUPER privilege; allow it to create the triggers
-  # shipped in the application migrations when binary logging is enabled.
-  parameter {
-    name  = "log_bin_trust_function_creators"
+    name  = "log_disconnections"
     value = "1"
+  }
+
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+
+  # Slow query log: statements slower than 2 seconds.
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "2000"
   }
 
   tags = {
@@ -75,10 +72,9 @@ resource "random_id" "final_snapshot" {
 }
 
 resource "aws_rds_cluster" "this" {
-  #checkov:skip=CKV_AWS_326:Backtrack is not supported for Aurora Serverless v2 / MySQL 8.4; point-in-time restore covers recovery.
   #checkov:skip=CKV2_AWS_8:Automated backups with PITR are enabled; an AWS Backup plan is listed on the roadmap (cross-account copies).
   cluster_identifier = var.name
-  engine             = "aurora-mysql"
+  engine             = "aurora-postgresql"
   engine_mode        = "provisioned"
   engine_version     = var.engine_version
   database_name      = var.database_name

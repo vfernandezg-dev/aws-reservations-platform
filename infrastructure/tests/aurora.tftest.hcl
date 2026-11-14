@@ -67,8 +67,13 @@ run "production_profile" {
   }
 
   assert {
-    condition     = contains(aws_rds_cluster.this.enabled_cloudwatch_logs_exports, "audit")
-    error_message = "Audit logs must be exported."
+    condition     = contains(aws_rds_cluster.this.enabled_cloudwatch_logs_exports, "postgresql")
+    error_message = "PostgreSQL logs (connections, DDL, slow statements) must be exported."
+  }
+
+  assert {
+    condition     = aws_rds_cluster.this.engine == "aurora-postgresql" && aws_rds_cluster.this.port == 5432
+    error_message = "The cluster must run Aurora PostgreSQL on port 5432."
   }
 
   assert {
