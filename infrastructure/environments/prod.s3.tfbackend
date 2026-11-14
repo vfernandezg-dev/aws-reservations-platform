@@ -1,0 +1,6 @@
+# Partial backend config for the "prod" environment.
+# The bucket name is passed separately (bootstrap output), see the Makefile.
+key          = "infrastructure/prod/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

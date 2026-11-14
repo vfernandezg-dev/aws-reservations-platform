@@ -1,0 +1,43 @@
+# Local development: MySQL 8.4 + the API, mirroring the Aurora MySQL 8.4 setup.
+#   docker compose up --build
+#   docker compose run --rm migrate
+#   curl localhost:8080/api/public/db-health   (API_PORT=18080 to use another host port)
+services:
+  db:
+    image: mysql:8.4
+    # Same setting as the Aurora cluster parameter group (triggers without SUPER).
+    command: ["--log-bin-trust-function-creators=1"]
+    environment:
+      MYSQL_DATABASE: reservations
+      MYSQL_USER: app
+      MYSQL_PASSWORD: local-dev-only
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      retries: 20
+
+  api: &api
+    build: .
+    environment: &env
+      PORT: "8080"
+      APP_VERSION: local
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: reservations
+      DB_USER: app
+      DB_PASSWORD: local-dev-only
+      DB_TLS: "false"
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  migrate:
+    <<: *api
+    command: ["dist/migrate.js"]
+    ports: []
+    profiles: ["tools"]

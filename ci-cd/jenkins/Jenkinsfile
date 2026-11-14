@@ -1,0 +1,124 @@
+// Parameterised Terraform pipeline: the same quality gates as GitHub Actions,
+// then plan -> manual approval -> apply of the exact saved plan.
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    ansiColor('xterm')
+    disableConcurrentBuilds()
+    timeout(time: 60, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+  }
+
+  parameters {
+    choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Target environment')
+    choice(name: 'ACTION', choices: ['plan', 'apply', 'destroy'], description: 'plan only, or plan + apply/destroy after approval')
+    string(name: 'APP_IMAGE_TAG', defaultValue: '', description: 'Image tag to deploy (empty = keep the deployed tag)')
+  }
+
+  environment {
+    TF_IN_AUTOMATION = 'true'
+    TF_INPUT         = 'false'
+    TF_DIR           = 'infrastructure'
+  }
+
+  stages {
+    stage('Quality gates') {
+      parallel {
+        stage('fmt') {
+          steps { sh 'terraform fmt -check -recursive' }
+        }
+        stage('validate + test') {
+          steps {
+            dir("${TF_DIR}") {
+              sh '''
+                terraform init -backend=false
+                terraform validate
+                terraform test
+              '''
+            }
+          }
+        }
+        stage('tflint') {
+          steps {
+            sh '''
+              tflint --init --config "$WORKSPACE/.tflint.hcl"
+              tflint --recursive --config "$WORKSPACE/.tflint.hcl" --format compact
+            '''
+          }
+        }
+        stage('trivy') {
+          steps { sh 'trivy config --exit-code 1 --severity HIGH,CRITICAL .' }
+        }
+      }
+    }
+
+    stage('Plan') {
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-terraform']]) {
+          dir("${TF_DIR}") {
+            sh '''
+              test -n "$TF_STATE_BUCKET" || { echo "TF_STATE_BUCKET is not configured"; exit 1; }
+              terraform init -reconfigure \
+                -backend-config="environments/${ENVIRONMENT}.s3.tfbackend" \
+                -backend-config="bucket=${TF_STATE_BUCKET}"
+
+              tag="${APP_IMAGE_TAG:-$(terraform output -raw app_image_tag 2>/dev/null || git rev-parse HEAD)}"
+              destroy_flag=""
+              if [ "$ACTION" = "destroy" ]; then destroy_flag="-destroy"; fi
+
+              terraform plan -no-color -lock-timeout=5m $destroy_flag \
+                -var-file="environments/${ENVIRONMENT}.tfvars" \
+                -var="app_image_tag=${tag}" \
+                -out=tfplan | tee plan.txt
+            '''
+          }
+        }
+        archiveArtifacts artifacts: "${TF_DIR}/plan.txt", fingerprint: true
+      }
+    }
+
+    stage('Approval') {
+      when { expression { params.ACTION != 'plan' } }
+      steps {
+        script {
+          def answer = input(
+            message: "${params.ACTION} ${params.ENVIRONMENT}? Review plan.txt first.",
+            ok: 'Proceed',
+            parameters: [string(name: 'CONFIRM', description: "Type '${params.ENVIRONMENT}' to confirm")]
+          )
+          if (answer != params.ENVIRONMENT) {
+            error("Confirmation did not match '${params.ENVIRONMENT}'.")
+          }
+        }
+      }
+    }
+
+    stage('Apply') {
+      when { expression { params.ACTION != 'plan' } }
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-terraform']]) {
+          dir("${TF_DIR}") {
+            sh 'terraform apply -no-color -lock-timeout=5m tfplan'
+          }
+        }
+      }
+    }
+
+    stage('Smoke test') {
+      when { expression { params.ACTION == 'apply' } }
+      steps {
+        withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-terraform']]) {
+          sh 'scripts/smoke-test.sh "$ENVIRONMENT"'
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      cleanWs()
+    }
+  }
+}

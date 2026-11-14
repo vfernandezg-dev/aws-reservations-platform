@@ -1,0 +1,12 @@
+# Checkov settings shared by `make sec`, pre-commit and CI.
+# Accepted risks are NOT skipped here: each one is documented inline next to
+# the resource (#checkov:skip=<id>:<reason>) so the justification is reviewed
+# together with the code.
+framework:
+  - terraform
+compact: true
+quiet: true
+download-external-modules: false
+skip-path:
+  - app/node_modules
+  - .terraform

@@ -1,0 +1,10 @@
+configuration-as-code
+job-dsl
+workflow-aggregator
+pipeline-stage-view
+git
+credentials-binding
+aws-credentials
+timestamper
+ansicolor
+ws-cleanup

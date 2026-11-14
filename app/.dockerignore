@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+test
+*.md
+.env*
+Dockerfile
+.dockerignore
+eslint.config.js
+vitest.config.ts
+compose.yaml

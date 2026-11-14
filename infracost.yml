@@ -1,0 +1,21 @@
+# Infracost projects: one per environment (`make cost`).
+version: 0.1
+projects:
+  - path: infrastructure
+    name: dev
+    terraform_var_files:
+      - environments/dev.tfvars
+    terraform_vars:
+      app_image_tag: cost-estimate
+  - path: infrastructure
+    name: staging
+    terraform_var_files:
+      - environments/staging.tfvars
+    terraform_vars:
+      app_image_tag: cost-estimate
+  - path: infrastructure
+    name: prod
+    terraform_var_files:
+      - environments/prod.tfvars
+    terraform_vars:
+      app_image_tag: cost-estimate

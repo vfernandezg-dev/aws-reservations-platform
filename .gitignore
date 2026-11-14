@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------------------
+# Terraform
+# ---------------------------------------------------------------------------
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*tfplan*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Variable files may contain secrets. Only the non-secret per-environment
+# files under infrastructure/environments are versioned.
+*.tfvars
+*.tfvars.json
+!infrastructure/environments/*.tfvars
+
+# Infracost
+.infracost/
+
+# ---------------------------------------------------------------------------
+# Node.js (app/)
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Local environment & secrets
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------------------------------------------------------------------------
+# OS / editors
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~

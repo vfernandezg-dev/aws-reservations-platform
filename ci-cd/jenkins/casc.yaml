@@ -1,0 +1,56 @@
+# Jenkins Configuration as Code. Secrets come from environment variables
+# (see docker-compose.yml); nothing sensitive is stored in this file.
+jenkins:
+  systemMessage: "AWS Reservations Platform - Terraform pipeline (configured as code)"
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: TF_STATE_BUCKET
+            value: "${TF_STATE_BUCKET:-}"
+          - key: AWS_REGION
+            value: "${AWS_REGION:-us-east-1}"
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          # Prefer an instance/task role (or assume-role) in a real setup; static
+          # keys are only for running this demo controller locally.
+          - aws:
+              id: aws-terraform
+              description: AWS credentials used by Terraform
+              accessKey: "${AWS_ACCESS_KEY_ID:-}"
+              secretKey: "${AWS_SECRET_ACCESS_KEY:-}"
+              scope: GLOBAL
+
+unclassified:
+  location:
+    url: "${JENKINS_URL:-http://localhost:8080/}"
+
+jobs:
+  - script: |
+      pipelineJob('reservations-terraform') {
+        description('Plan / apply / destroy the AWS Reservations Platform')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url(System.getenv('REPO_URL')) }
+                branch('*/main')
+              }
+            }
+            scriptPath('ci-cd/jenkins/Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title} · ${environment}</title>
+  <style>
+    :root { color-scheme: light dark; --accent: #2563eb; }
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; }
+    header { border-bottom: 1px solid #8884; margin-bottom: 1.5rem; }
+    .badge { display: inline-block; padding: .1rem .6rem; border-radius: 999px; background: var(--accent); color: #fff; font-size: .8rem; }
+    button { padding: .5rem 1rem; margin: .25rem .25rem .25rem 0; border: 0; border-radius: .4rem; background: var(--accent); color: #fff; cursor: pointer; }
+    pre { background: #8881; padding: 1rem; border-radius: .4rem; overflow-x: auto; min-height: 3rem; }
+    li code { font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>${title} <span class="badge">${environment}</span></h1>
+    <p>Static content served from <strong>Amazon S3</strong> through <strong>CloudFront</strong> (Origin Access Control, AWS WAF).</p>
+  </header>
+
+  <h2>Try the API</h2>
+  <p>Requests to <code>/api/*</code> travel CloudFront &rarr; API Gateway (HTTP API) &rarr; VPC Link &rarr; internal ALB &rarr; ECS Fargate &rarr; Aurora Serverless v2.</p>
+  <button data-path="/api/public/hello">GET /api/public/hello</button>
+  <button data-path="/api/public/db-health">GET /api/public/db-health</button>
+  <button data-path="/api/me">GET /api/me (JWT protected)</button>
+  <pre id="out">Click a button&hellip;</pre>
+
+  <script>
+    document.querySelectorAll("button[data-path]").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var out = document.getElementById("out");
+        var path = btn.getAttribute("data-path");
+        out.textContent = "GET " + path + " ...";
+        var started = performance.now();
+        try {
+          var res = await fetch(path, { headers: { Accept: "application/json" } });
+          var body = await res.text();
+          var ms = Math.round(performance.now() - started);
+          try { body = JSON.stringify(JSON.parse(body), null, 2); } catch (e) {}
+          out.textContent = res.status + " " + res.statusText + " (" + ms + " ms)\n\n" + body;
+        } catch (err) {
+          out.textContent = "Request failed: " + err;
+        }
+      });
+    });
+  </script>
+</body>
+</html>
