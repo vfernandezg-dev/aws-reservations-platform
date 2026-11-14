@@ -18,6 +18,9 @@ short-lived OIDC credentials.
 ```bash
 cd bootstrap
 cp terraform.tfvars.example terraform.tfvars   # set github_repository = "owner/repo"
+# New GitHub repositories use immutable OIDC subjects; copy the prefix into
+# github_oidc_subject_prefix:
+gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix
 terraform init
 terraform apply
 
@@ -83,6 +86,7 @@ it into the bucket afterwards, see the comment in [`versions.tf`](versions.tf).
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | Region for the state bucket and ECR repository. | `string` | `"us-east-1"` | no |
 | <a name="input_create_github_oidc_provider"></a> [create\_github\_oidc\_provider](#input\_create\_github\_oidc\_provider) | Create the GitHub OIDC identity provider (set false if the account already has one). | `bool` | `true` | no |
 | <a name="input_environments"></a> [environments](#input\_environments) | GitHub Environments allowed to assume the apply role. | `list(string)` | <pre>[<br/>  "dev",<br/>  "staging",<br/>  "prod"<br/>]</pre> | no |
+| <a name="input_github_oidc_subject_prefix"></a> [github\_oidc\_subject\_prefix](#input\_github\_oidc\_subject\_prefix) | OIDC `sub` prefix GitHub uses for the repository. Needed for repositories with immutable subjects (repo:<owner>@<owner-id>/<repo>@<repo-id>); get it with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix`. Null uses repo:<owner>/<name>. | `string` | `null` | no |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Project identifier; must match project\_name of the infrastructure stack. | `string` | `"reservations"` | no |
 
 ### Outputs

@@ -15,6 +15,9 @@
    cd ..
    ```
    If the account already has a GitHub OIDC provider, set `create_github_oidc_provider = false`.
+   For repositories with immutable OIDC subjects (default for new ones) also set
+   `github_oidc_subject_prefix` to the output of
+   `gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix`.
 3. **Image**: `make image` builds `app/` for `linux/arm64` and pushes `<ecr>/reservations-app:<short-sha>`.
 4. **Plan and apply**:
    ```bash

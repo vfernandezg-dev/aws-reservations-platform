@@ -1,6 +1,10 @@
 # Copy to terraform.tfvars (git-ignored) and adjust.
 github_repository = "your-github-user/aws-reservations-platform"
 
+# Repositories with immutable OIDC subjects (default for new repositories):
+#   gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix
+# github_oidc_subject_prefix = "repo:your-github-user@12345/aws-reservations-platform@67890"
+
 # project_name                = "reservations"
 # aws_region                  = "us-east-1"
 # create_github_oidc_provider = true

@@ -19,6 +19,11 @@ restricted by the token `sub` claim:
 | `gha-apply` | jobs bound to the GitHub Environments `dev`, `staging`, `prod` | `PowerUserAccess` + IAM limited to `<project>-*` roles |
 | `gha-ecr-push` | `main` of this repository | push to the application ECR repository |
 
+Trust policies match GitHub's **immutable subject** format
+(`repo:<owner>@<owner-id>/<repo>@<repo-id>:...`, the default for new repositories, set through
+`github_oidc_subject_prefix`), so a repository deleted and re-created under the same name by someone
+else can never assume the roles.
+
 Apply jobs run in GitHub Environments with required reviewers, so assuming the apply role always
 requires an explicit human approval of a published plan.
 

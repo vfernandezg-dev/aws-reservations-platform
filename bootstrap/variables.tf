@@ -25,6 +25,17 @@ variable "github_repository" {
   }
 }
 
+variable "github_oidc_subject_prefix" {
+  description = "OIDC `sub` prefix GitHub uses for the repository. Needed for repositories with immutable subjects (repo:<owner>@<owner-id>/<repo>@<repo-id>); get it with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix`. Null uses repo:<owner>/<name>."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.github_oidc_subject_prefix == null || startswith(coalesce(var.github_oidc_subject_prefix, "-"), "repo:")
+    error_message = "github_oidc_subject_prefix must start with \"repo:\"."
+  }
+}
+
 variable "environments" {
   description = "GitHub Environments allowed to assume the apply role."
   type        = list(string)

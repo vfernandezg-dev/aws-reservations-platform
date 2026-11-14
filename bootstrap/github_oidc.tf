@@ -5,7 +5,13 @@
 
 locals {
   oidc_provider_arn = var.create_github_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
-  repo              = var.github_repository
+
+  # Repositories with immutable OIDC subjects (the GitHub default for new
+  # repositories) include the owner and repository IDs in the `sub` claim, e.g.
+  # repo:octo-org@123/octo-repo@456:ref:refs/heads/main. This protects the
+  # trust policy against a repository being deleted and re-created by someone
+  # else under the same name.
+  subject_prefix = coalesce(var.github_oidc_subject_prefix, "repo:${var.github_repository}")
 }
 
 # Only one GitHub OIDC provider can exist per account. Set
@@ -26,11 +32,11 @@ data "aws_iam_openid_connect_provider" "github" {
 data "aws_iam_policy_document" "trust" {
   for_each = {
     # Pull requests and main may run read-only plans.
-    plan = ["repo:${local.repo}:pull_request", "repo:${local.repo}:ref:refs/heads/main"]
+    plan = ["${local.subject_prefix}:pull_request", "${local.subject_prefix}:ref:refs/heads/main"]
     # Applies only run from jobs bound to a GitHub Environment (with reviewers).
-    apply = [for env in var.environments : "repo:${local.repo}:environment:${env}"]
+    apply = [for env in var.environments : "${local.subject_prefix}:environment:${env}"]
     # Images are published from main only.
-    ecr-push = ["repo:${local.repo}:ref:refs/heads/main"]
+    ecr-push = ["${local.subject_prefix}:ref:refs/heads/main"]
   }
 
   statement {
